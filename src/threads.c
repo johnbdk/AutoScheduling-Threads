@@ -29,7 +29,7 @@ int thread_lib_init(int native_threads) {
     native_thread_stack = (char *) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
     main_thread.context.uc_stack.ss_sp = native_thread_stack;
 
-    queue_push(ready_queue, (queue_t *) &main_thread);
+    enqueue_head(ready_queue, (queue_t *) &main_thread);
 
     if (getcontext(&uctx_scheduler) == -1) {
         handle_error("getcontext");
@@ -89,7 +89,7 @@ int thread_create(thread_t *thr, void (body)(void *), void *arg, int deps, threa
     thr->successors[thr->num_successors] = NULL;
 
     if (!thr->deps) {
-        queue_push(ready_queue, (queue_t *) thr);
+        enqueue_head(ready_queue, (queue_t *) thr);
     }
     return 0;
 }
@@ -107,7 +107,7 @@ thread_t *thread_self() {
 
     mask = ~(STACK_SIZE - 1);
     self = *(thread_t **) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
-    printf("THREAD SELF: self pointer %p of thread %d\n", self, self->id);
+    // printf("THREAD SELF: self pointer %p of thread %d\n", self, self->id);
     fflush(stdout);
     return self;
 }
@@ -138,7 +138,7 @@ int thread_yield() {
     if (!me->deps && !me->blocked) {
             printf("THREAD YIELD: push myself to queue from thead %d\n", me->id);
             fflush(stdout);
-            queue_push(ready_queue, (queue_t *) me);
+            enqueue_head(ready_queue, (queue_t *) me);
     }
     
     if (swapcontext(&(me->context), &uctx_scheduler) == -1) {
@@ -163,7 +163,7 @@ void thread_exit() {
                 if(me->successors[i]->deps == 0 && !me->successors[i]->blocked) {
                     printf("THREAD EXIT: successor %d has 0 deps, adding him in the queue\n", me->successors[i]->id);
                     fflush(stdout);
-                    queue_push(ready_queue, (queue_t *) me->successors[i]);
+                    enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
                 }
             }
         }
@@ -195,7 +195,7 @@ void scheduler(void) {
     thread_t *running_thread;
 
     while(1) {
-        running_thread = (thread_t *) queue_pop(ready_queue);
+        running_thread = (thread_t *) dequeue_tail(ready_queue);
         if(running_thread == NULL){
             continue;
         }

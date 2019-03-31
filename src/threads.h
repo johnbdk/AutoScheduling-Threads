@@ -29,8 +29,15 @@ typedef struct thr_descriptor {
   struct thr_descriptor **successors;
 } thread_t;
 
+typedef struct thr_descriptor_reuse {
+  queue_t *thr_reuse_queue;     // LIFO queue
+  int capacity;
+  int max_capacity;             // uper bound
+} thread_reuse_t;
+
 ucontext_t uctx_scheduler;
 queue_t *ready_queue;
+thread_reuse_t *thr_reuse;
 thread_t main_thread;
 long int native_stack_size;
 int thread_next_id;

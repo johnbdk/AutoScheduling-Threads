@@ -13,10 +13,9 @@ int queue_empty(queue_t *head) {
     return (head->next == head) || (head == NULL);
 }
 
-void queue_push(queue_t *head, queue_t *element) {
+void enqueue_head(queue_t *head, queue_t *element) {    // put in head (high priority)
 
     if (head == NULL) {
-        // printf("Queue has not been created\n");
         return;
     }
     
@@ -26,11 +25,22 @@ void queue_push(queue_t *head, queue_t *element) {
     head->next = element;
 }
 
-queue_t *queue_pop(queue_t *head) {
+void enqueue_tail(queue_t *head, queue_t *element) {    // put in tail (low priority)
+
+    if (head == NULL) {
+        return;
+    }
+    
+    element->next = head;
+    element->prev = head->prev;
+    head->prev->next = element;
+    head->prev = element;
+}
+
+queue_t *dequeue_tail(queue_t *head) {                  // take from tail (high priority)
     queue_t *curr;
     
     if (queue_empty(head)) {
-        // printf("Queue has not any elements\n");
         return NULL;
     }
 
@@ -40,14 +50,15 @@ queue_t *queue_pop(queue_t *head) {
     return curr;
 }
 
-// void queue_print(queue_t *head) {
-//     thr_t *tmp;
-//     tmp = (thr_t *) head->next;
-//     printf("Queue has the following elements\n");
-//     while( (queue_t *)tmp != head ){
-//         printf("%d\t",tmp->id);
-// //         printf("%d\n",tmp->id);
-//         tmp = tmp->next;
-//     }
-//     printf("\n");
-// }
+queue_t *dequeue_head(queue_t *head) {                  // take from head (low priority)
+    queue_t *curr;
+    
+    if (queue_empty(head)) {
+        return NULL;
+    }
+
+    curr = head->next;
+    head->next = curr->next;
+    curr->next->prev = head;
+    return curr;
+}
