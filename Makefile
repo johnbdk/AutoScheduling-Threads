@@ -2,7 +2,11 @@
 CC = gcc
 
 # Compiler flags
-CFLAGS = -g -Wall -no-pie
+CFLAGS = -g -Wall
+
+# Debug flags
+# Variable REUSE_STACK to reuse thread_descriptors
+DBGFLAGS = -DREUSE_STACK
 
 # Compile with -O3 optimization
 OPTFLAGS = -O3
@@ -13,7 +17,6 @@ OBJ = obj
 
 SOURCES = $(wildcard $(SRC)/*.c)
 OBJECTS = $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SOURCES))
-
 main: $(OBJECTS)
 	$(CC) $(CFLAGS) $^ -o $@ $(DBGFLAGS)
 
