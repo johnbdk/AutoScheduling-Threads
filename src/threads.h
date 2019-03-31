@@ -24,20 +24,24 @@ typedef struct thr_descriptor {
   ucontext_t context;
   int deps;
   int num_successors;
+  int alloc_successors;
   int alive;
   int blocked;
   struct thr_descriptor **successors;
 } thread_t;
 
+#ifdef REUSE_STACK
 typedef struct thr_descriptor_reuse {
-  queue_t *thr_reuse_queue;     // LIFO queue
+  queue_t *descriptors;         // LIFO queue
   int capacity;
   int max_capacity;             // uper bound
 } thread_reuse_t;
 
+thread_reuse_t thr_reuse;
+#endif
+
 ucontext_t uctx_scheduler;
 queue_t *ready_queue;
-thread_reuse_t *thr_reuse;
 thread_t main_thread;
 long int native_stack_size;
 int thread_next_id;

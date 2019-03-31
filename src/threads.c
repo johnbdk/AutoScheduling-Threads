@@ -7,6 +7,12 @@ int thread_lib_init(int native_threads) {
     char *native_thread_stack;
     static ucontext_t uctx_main;
 
+#ifdef REUSE_STACK
+    thr_reuse.descriptors = queue_create();
+    thr_reuse.capacity = 0;
+    thr_reuse.max_capacity = 10000;
+#endif
+
     thread_next_id = 0;
     ready_queue = queue_create();
 
@@ -47,18 +53,33 @@ int thread_lib_init(int native_threads) {
 
 thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *successors[]) {
 
-    thread_t *thr = (thread_t *) malloc(sizeof(thread_t));
-    
+    thread_t *thr;
+
+#ifdef REUSE_STACK
+    int empty_descriptors = queue_empty(thr_reuse.descriptors);
+    if (!empty_descriptors) {
+        printf("THREAD CREATE: got reuse thread descriptor\n");
+        thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
+        thr_reuse.capacity--; 
+    }
+    else {
+#endif
+    thr = (thread_t *) malloc(sizeof(thread_t));
     if (getcontext(&(thr->context)) == -1) {
         handle_error("getcontext");
     }
     thr->stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);    // ALLOCATE ALIGNED MEMORY 8*MEM_SIZE
+    thr->successors = NULL;
     memcpy(thr->stack, &thr, sizeof(thread_t *));                   // FIRST 16 BYTES ARE FOR THE POINTER POINTING TO THE DESCRIPTOR
     (thr->context).uc_stack.ss_sp = thr->stack + 16;                // ALL THE OTHER BYTES
     (thr->context).uc_stack.ss_size = STACK_SIZE - 16;
     (thr->context).uc_link = &uctx_scheduler;
+    thr->alloc_successors = 0;
+#ifdef REUSE_STACK
+    }
+#endif
+    
     makecontext(&(thr->context), (void *)wrapper_func, 2, body, arg);
-
     thr->next = NULL;
     thr->prev = NULL;
     thr->id = thread_next_id++;
@@ -66,29 +87,36 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thr->alive = 1;
     thr->blocked = 0;
     thr->num_successors = 0;
-    thr->successors = NULL;
     
     printf("THREAD CREATE: stack address %p of thread %d\n", thr->stack, thr->id);
     fflush(stdout);
-
-    if (successors[0] == NULL) {
-        thr->successors = (thread_t **) malloc(sizeof(thread_t *));
-        thr->successors[0] = NULL;
-        return thr;
-    }
 
     for (int j = 0; successors[j] != NULL; j++) {
         thr->num_successors++;
     }
 
-    printf("THREAD CREATE: num_successors %d of thread %d\n", thr->num_successors, thr->id);
+    printf("THREAD CREATE: deps %d, num_successors %d, alloc_successors %d of thread %d\n", thr->deps, thr->num_successors, thr->alloc_successors, thr->id);
     fflush(stdout);
-    thr->successors = (thread_t **) malloc((thr->num_successors+1)*sizeof(thread_t *));
+
+#ifdef REUSE_STACK
+    if (empty_descriptors) {
+#endif
+        thr->alloc_successors = thr->num_successors;
+        thr->successors = (thread_t **) malloc((thr->num_successors)*sizeof(thread_t *));
+#ifdef REUSE_STACK
+    }
+    else {
+        if (thr->alloc_successors < thr->num_successors) {
+            thread_t **new_successors = (thread_t **) realloc(thr->successors, (thr->num_successors)*sizeof(thread_t *));
+            thr->alloc_successors = thr->num_successors;
+            thr->successors = new_successors;
+        }
+    }
+#endif
+    
     for (int i = 0; i < thr->num_successors; i++) {
         thr->successors[i] = successors[i];
     }
-    /* NULL terminated array */
-    thr->successors[thr->num_successors] = NULL;
 
     if (!thr->deps) {
         enqueue_head(ready_queue, (queue_t *) thr);
@@ -157,16 +185,14 @@ void thread_exit() {
         printf("THREAD EXIT: exiting thread %d\n", me->id);
         printf("THREAD EXIT: my successors are %d\n", me->num_successors);
         fflush(stdout);
-        if (me->successors[0] != NULL) {
-            for (int i = 0; i < me->num_successors; i++) {
-                printf("THREAD EXIT: descent the deps %d from thread %d\n", me->successors[i]->deps, me->successors[i]->id);
+        for (int i = 0; i < me->num_successors; i++) {
+            printf("THREAD EXIT: descent the deps %d from thread %d\n", me->successors[i]->deps, me->successors[i]->id);
+            fflush(stdout);
+            me->successors[i]->deps--;
+            if(me->successors[i]->deps == 0 && !me->successors[i]->blocked) {
+                printf("THREAD EXIT: successor %d has 0 deps, adding him in the queue\n", me->successors[i]->id);
                 fflush(stdout);
-                me->successors[i]->deps--;
-                if(me->successors[i]->deps == 0 && !me->successors[i]->blocked) {
-                    printf("THREAD EXIT: successor %d has 0 deps, adding him in the queue\n", me->successors[i]->id);
-                    fflush(stdout);
-                    enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
-                }
+                enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
             }
         }
     }
@@ -177,6 +203,19 @@ int thread_lib_exit() {
     
     printf("THREAD LIB EXIT: exit library\n");
     fflush(stdout);
+
+#ifdef REUSE_STACK
+    thread_t *thr;
+    while (!queue_empty(thr_reuse.descriptors)){
+        thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
+        (thr_reuse.capacity)--;
+        if (thr->num_successors > 0) {
+            free(thr->successors);
+        }
+        free(thr->stack);
+        free(thr);
+    }
+#endif
     free(main_thread.successors);
     free(ready_queue);
     free(uctx_scheduler.uc_stack.ss_sp);
@@ -185,13 +224,21 @@ int thread_lib_exit() {
 
 void free_thread(thread_t *thr) {
 
-    if (thr->num_successors > 0) {
-        free(thr->successors);
+#ifdef REUSE_STACK
+    if (thr->id && thr_reuse.capacity < thr_reuse.max_capacity) {
+        printf("FREE_THREAD: will reuse the stack of thread %d, descriptors queue has size %d\n", thr->id, thr_reuse.capacity);
+        enqueue_head(thr_reuse.descriptors, (queue_t *) thr);
+        thr_reuse.capacity++;
     }
+#else
     if (thr->id) {
+        if (thr->num_successors > 0) {
+            free(thr->successors);
+        }
         free(thr->stack);
         free(thr);
     }
+#endif
 }
 
 void scheduler(void) {
