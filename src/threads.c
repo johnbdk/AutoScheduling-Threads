@@ -45,7 +45,9 @@ int thread_lib_init(int native_threads) {
     return 0;
 }
 
-int thread_create(thread_t *thr, void (body)(void *), void *arg, int deps, thread_t *successors[]) {
+thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *successors[]) {
+
+    thread_t *thr = (thread_t *) malloc(sizeof(thread_t));
     
     if (getcontext(&(thr->context)) == -1) {
         handle_error("getcontext");
@@ -72,7 +74,7 @@ int thread_create(thread_t *thr, void (body)(void *), void *arg, int deps, threa
     if (successors[0] == NULL) {
         thr->successors = (thread_t **) malloc(sizeof(thread_t *));
         thr->successors[0] = NULL;
-        return -1;
+        return thr;
     }
 
     for (int j = 0; successors[j] != NULL; j++) {
@@ -91,7 +93,7 @@ int thread_create(thread_t *thr, void (body)(void *), void *arg, int deps, threa
     if (!thr->deps) {
         enqueue_head(ready_queue, (queue_t *) thr);
     }
-    return 0;
+    return thr;
 }
 
 thread_t *thread_self() {
@@ -188,6 +190,7 @@ void free_thread(thread_t *thr) {
     }
     if (thr->id) {
         free(thr->stack);
+        free(thr);
     }
 }
 

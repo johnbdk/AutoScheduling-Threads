@@ -20,10 +20,10 @@ void work(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-    thread_t t1;
-    thread_t t2;
-    thread_t t3;
-    thread_t t4;
+    thread_t *t1;
+    thread_t *t2;
+    thread_t *t3;
+    thread_t *t4;
 
     /*
       t1 --> t2
@@ -33,10 +33,10 @@ int main(int argc, char *argv[]) {
 
     thread_lib_init(1);
 
-    thread_create(&t4, work, "t4", 1, THREAD_LIST2(1, thread_self()));
-    thread_create(&t3, work, "t3", 1, THREAD_LIST2(1, thread_self()));
-    thread_create(&t2, work, "t2", 1, THREAD_LIST2(1, thread_self()));
-    thread_create(&t1, work, "t1", 0, THREAD_LIST2(3, &t2, &t3, &t4));
+    t4 = thread_create(work, "t4", 1, THREAD_LIST2(1, thread_self()));
+    t3 = thread_create(work, "t3", 1, THREAD_LIST2(1, thread_self()));
+    t2 = thread_create(work, "t2", 1, THREAD_LIST2(1, thread_self()));
+    t1 = thread_create(work, "t1", 0, THREAD_LIST2(3, t2, t3, t4));
 
     thread_inc_dependency(3);
 
