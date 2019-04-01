@@ -3,15 +3,15 @@
 
 #include "threads.h"
 
-void work2(void *arg) {
-    int id;
+// void work2(void *arg) {
+//     int id;
 
-    id = thread_getid();
-    printf("%s id=%d\n", (char *)arg, id);
-    fflush(stdout);
+//     id = thread_getid();
+//     printf("%s id=%d\n", (char *)arg, id);
+//     fflush(stdout);
 
-    thread_exit();
-}
+//     thread_exit();
+// }
 
 void work(void *arg) {
     int i;
@@ -26,9 +26,9 @@ void work(void *arg) {
         thread_yield();
     }
 
-    thread_inc_dependency(1);
-    thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));
-    thread_yield();
+    // thread_inc_dependency(1);
+    // thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));
+    // thread_yield();
     thread_exit();
 }
 

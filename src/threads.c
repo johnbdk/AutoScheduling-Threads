@@ -40,6 +40,7 @@ int thread_lib_init(int native_threads) {
     if (getcontext(&uctx_scheduler) == -1) {
         handle_error("getcontext");
     }
+
     char *scheduler_stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);     // ALLOCATE ALIGNED MEMORY 8*MEM_SIZE
     uctx_scheduler.uc_stack.ss_sp = scheduler_stack;                            // ALL THE OTHER BYTES
     uctx_scheduler.uc_stack.ss_size = STACK_SIZE;
@@ -95,9 +96,6 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
         thr->num_successors++;
     }
 
-    printf("THREAD CREATE: deps %d, num_successors %d, alloc_successors %d of thread %d\n", thr->deps, thr->num_successors, thr->alloc_successors, thr->id);
-    fflush(stdout);
-
 #ifdef REUSE_STACK
     if (empty_descriptors) {
 #endif
@@ -114,12 +112,14 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     }
 #endif
     
+    printf("THREAD CREATE: deps %d, num_successors %d, alloc_successors %d of thread %d\n", thr->deps, thr->num_successors, thr->alloc_successors, thr->id);
+    fflush(stdout);
     for (int i = 0; i < thr->num_successors; i++) {
         thr->successors[i] = successors[i];
     }
 
     if (!thr->deps) {
-        enqueue_head(ready_queue, (queue_t *) thr);
+        enqueue_tail(ready_queue, (queue_t *) thr);
     }
     return thr;
 }
@@ -207,7 +207,7 @@ int thread_lib_exit() {
 #ifdef REUSE_STACK
     thread_t *thr;
     while (!queue_empty(thr_reuse.descriptors)){
-        thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
+        thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
         (thr_reuse.capacity)--;
         if (thr->num_successors > 0) {
             free(thr->successors);
@@ -227,7 +227,7 @@ void free_thread(thread_t *thr) {
 #ifdef REUSE_STACK
     if (thr->id && thr_reuse.capacity < thr_reuse.max_capacity) {
         printf("FREE_THREAD: will reuse the stack of thread %d, descriptors queue has size %d\n", thr->id, thr_reuse.capacity);
-        enqueue_head(thr_reuse.descriptors, (queue_t *) thr);
+        enqueue_tail(thr_reuse.descriptors, (queue_t *) thr);
         thr_reuse.capacity++;
     }
 #else
