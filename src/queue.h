@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <malloc.h>
 #include <unistd.h>
+#include <pthread.h>
 
 typedef struct queue {
     struct queue *next;
@@ -17,5 +18,6 @@ void enqueue_head(queue_t *head, queue_t *element);
 void enqueue_tail(queue_t *head, queue_t *element);
 queue_t *dequeue_head(queue_t *head);
 queue_t *dequeue_tail(queue_t *head);
+void print_queue(queue_t *head);
 
 #endif

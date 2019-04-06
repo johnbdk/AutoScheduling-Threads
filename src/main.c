@@ -26,6 +26,7 @@ void work(void *arg) {
     //     thread_yield();
     // }
     printf("%s id=%d\n", (char *)arg, id);
+    fflush(stdout);
 
     // thread_inc_dependency(1);
     // thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));

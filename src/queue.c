@@ -1,5 +1,5 @@
 #include "queue.h"
-
+#include "threads.h"
 queue_t *queue_create() {
     queue_t *head;
 
@@ -44,6 +44,7 @@ queue_t *dequeue_tail(queue_t *head) {                  // take from tail (high 
         return NULL;
     }
 
+
     curr = head->prev;
     curr->prev->next = head;
     head->prev = curr->prev;
@@ -61,4 +62,16 @@ queue_t *dequeue_head(queue_t *head) {                  // take from head (low p
     head->next = curr->next;
     curr->next->prev = head;
     return curr;
+}
+
+void print_queue(queue_t *head){
+    queue_t *curr;
+    thread_t *thr;
+
+    printf("~~~~~\n");
+    for (curr = head->next; curr != head; curr = curr->next) {
+        thr = (thread_t *)curr;
+        printf("%d ", thr->id);
+    }
+    printf("\n~~~~~\n");
 }

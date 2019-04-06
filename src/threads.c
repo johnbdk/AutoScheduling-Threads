@@ -239,7 +239,7 @@ void thread_exit() {
 
     me = thread_self();
     if(me->alive == 1) {
-        (me->context).uc_link = kernel_thr[me->kernel_thread_id].context;
+        // (me->context).uc_link = kernel_thr[me->kernel_thread_id].context;
         // printf("THREAD EXIT: %p, %d \n", kernel_thr[me->kernel_thread_id].context, me->kernel_thread_id);
         // fflush(stdout);
         // printf("THREAD EXIT: exiting thread %d from native thread %d \n", me->id, me->kernel_thread_id);
@@ -261,9 +261,9 @@ void thread_exit() {
         }
     }
     me->alive = 0;
-    // if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
-    //     handle_error("swapcontext");
-    // }
+    if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
+        handle_error("swapcontext");
+    }
 }
 
 int thread_lib_exit() {
@@ -324,11 +324,11 @@ void scheduler(void *id) {
         if (running_thread == NULL) {
             continue;
         }
-        // print_queue(ready_queue);
+        print_queue(ready_queue);
 
         printf("SCHEDULER: run the next thread %d from kernel thread %d\n", running_thread->id, native_thread);
         fflush(stdout);
-        sleep(1);
+        // sleep(1);
 
         running_thread->kernel_thread_id = native_thread;
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
