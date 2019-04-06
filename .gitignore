@@ -1,1 +1,4 @@
-Task1_v3.pdf
+*.pdf
+.tags*
+main
+/obj/*
