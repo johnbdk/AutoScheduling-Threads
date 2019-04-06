@@ -1,5 +1,21 @@
 #include "threads.h"
 
+int create_kernel_thread(kernel_thread_t *kernel_thr) {
+
+    // // printf("ALLOC KERNEL THREAD STACK\n");
+    fflush(stdout);
+    char *stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);
+    kernel_thr->stack = stack + STACK_SIZE;
+    return clone(&wrapper_scheduler, kernel_thr->stack, CLONE_VM, (void *)&kernel_thr->pid);       //CLONE_VM
+}
+
+int wrapper_scheduler(void *id) {
+    // // printf("HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE\n");
+    fflush(stdout);
+    scheduler(id);
+    return 1;
+}
+
 int thread_lib_init(int native_threads) {
 
     struct rlimit current_limits;
@@ -7,6 +23,8 @@ int thread_lib_init(int native_threads) {
     char *native_thread_stack;
     static ucontext_t uctx_main;
 
+    // printf("LIB INIT\n");
+    fflush(stdout);
 #ifdef REUSE_STACK
     thr_reuse.descriptors = queue_create();
     thr_reuse.capacity = 0;
@@ -15,6 +33,8 @@ int thread_lib_init(int native_threads) {
 
     thread_next_id = 0;
     ready_queue = queue_create();
+    //pthread_mutex_init(&lock_queue, NULL);
+    //pthread_mutex_init(&lock_stack_queue, NULL);
 
     main_thread.id = thread_next_id++;
     main_thread.deps = 0;
@@ -26,29 +46,49 @@ int thread_lib_init(int native_threads) {
     main_thread.successors = (thread_t **) malloc(sizeof(thread_t *));
     main_thread.successors[0] = NULL;
     main_thread.context = uctx_main;
+    main_thread.kernel_thread_id = 0;
 
     getrlimit(RLIMIT_STACK, &current_limits);
     native_stack_size = current_limits.rlim_cur;
-    printf("NATIVE THREAD WITH STACK SIZE = %ld\n", native_stack_size);
+    // printf("NATIVE THREAD WITH STACK SIZE = %ld\n", native_stack_size);
     
     mask = ~(native_stack_size - 1);
     native_thread_stack = (char *) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
     main_thread.context.uc_stack.ss_sp = native_thread_stack;
 
+    //pthread_mutex_lock(&lock_queue);
     enqueue_head(ready_queue, (queue_t *) &main_thread);
+    // print_queue(ready_queue);
+    //pthread_mutex_unlock(&lock_queue);
+    /********************************************************************/
+
+    kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));    // REMEMBER TO FREE
+    kernel_thr[0].pid = 0;                                                             // SAVE MAIN ID, i.e 0 id
+    kernel_thr[0].stack = native_thread_stack;                                         // FOR COMPLECITY
+    kernel_thr[0].context = /*****/ &uctx_scheduler; /*****/                      // FOR COMPLECITY 
+
+    for (int i = 0; i < (native_threads - 1); i++) {         // native_threads - 1, cause main has already an id
+        // printf("GOING TO CREATE NATIVE THREAD\n");
+        kernel_thr[i + 1].pid = i + 1;
+        kernel_thr[i + 1].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
+        printf("ON CREATE: %d - %p\n",i+1, kernel_thr[i + 1].context);
+        create_kernel_thread(&kernel_thr[i + 1]);
+    }
+    fflush(stdout);
+    /********************************************************************/
 
     if (getcontext(&uctx_scheduler) == -1) {
         handle_error("getcontext");
     }
-
     char *scheduler_stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);     // ALLOCATE ALIGNED MEMORY 8*MEM_SIZE
     uctx_scheduler.uc_stack.ss_sp = scheduler_stack;                            // ALL THE OTHER BYTES
     uctx_scheduler.uc_stack.ss_size = STACK_SIZE;
-    makecontext(&(uctx_scheduler), scheduler, 0);
-        
-    if (swapcontext(&(main_thread.context), &uctx_scheduler) == -1) {                       // SWAP TO THE THREAD FROM THE QUEUE
+    makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].pid);
+    // printf("PRE swapcontext");
+    if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
         handle_error("swapcontext");
     }
+
     return 0;
 }
 
@@ -57,10 +97,14 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thread_t *thr;
 
 #ifdef REUSE_STACK
+    //pthread_mutex_lock(&lock_stack_queue);
     int empty_descriptors = queue_empty(thr_reuse.descriptors);
+    //pthread_mutex_unlock(&lock_stack_queue);
     if (!empty_descriptors) {
-        printf("THREAD CREATE: got reuse thread descriptor\n");
+        // printf("THREAD CREATE: got reuse thread descriptor\n");
+        //pthread_mutex_lock(&lock_stack_queue);
         thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
+        //pthread_mutex_unlock(&lock_stack_queue);
         thr_reuse.capacity--; 
     }
     else {
@@ -89,7 +133,7 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thr->blocked = 0;
     thr->num_successors = 0;
     
-    printf("THREAD CREATE: stack address %p of thread %d\n", thr->stack, thr->id);
+    // printf("THREAD CREATE: stack address %p of thread %d\n", thr->stack, thr->id);
     fflush(stdout);
 
     for (int j = 0; successors[j] != NULL; j++) {
@@ -112,14 +156,17 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     }
 #endif
     
-    printf("THREAD CREATE: deps %d, num_successors %d, alloc_successors %d of thread %d\n", thr->deps, thr->num_successors, thr->alloc_successors, thr->id);
+    // printf("THREAD CREATE: deps %d, num_successors %d, alloc_successors %d of thread %d\n", thr->deps, thr->num_successors, thr->alloc_successors, thr->id);
     fflush(stdout);
     for (int i = 0; i < thr->num_successors; i++) {
         thr->successors[i] = successors[i];
     }
 
     if (!thr->deps) {
+        //pthread_mutex_lock(&lock_queue);
         enqueue_tail(ready_queue, (queue_t *) thr);
+        // print_queue(ready_queue);
+        //pthread_mutex_unlock(&lock_queue);
     }
     return thr;
 }
@@ -131,13 +178,15 @@ thread_t *thread_self() {
 
     mask = ~(native_stack_size - 1);
     stack_pointer = (char *) (mask & ((long int)&mask));
+    // printf("SELF\n");
+    fflush(stdout);
     if (stack_pointer == main_thread.context.uc_stack.ss_sp) {
         return &main_thread;
     }
 
     mask = ~(STACK_SIZE - 1);
     self = *(thread_t **) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
-    // printf("THREAD SELF: self pointer %p of thread %d\n", self, self->id);
+    // // printf("THREAD SELF: self pointer %p of thread %d\n", self, self->id);
     fflush(stdout);
     return self;
 }
@@ -153,9 +202,9 @@ int thread_inc_dependency(int num_deps) {
     thread_t *me;
     
     me = thread_self();
-    printf("THREAD INC DEPENDENCY: increment dep %d of thread %d\n", me->deps, me->id);
+    // printf("THREAD INC DEPENDENCY: increment dep %d of thread %d\n", num_deps, me->id);
     fflush(stdout);
-    me->deps += num_deps;
+    __atomic_add_fetch( &(me->deps), num_deps, __ATOMIC_SEQ_CST);
     return 0;
 }
 
@@ -163,15 +212,20 @@ int thread_yield() {
     thread_t *me;
     
     me = thread_self();
-    printf("THREAD YIELD: yield from thread %d\n", me->id);
+    // printf("THREAD YIELD: yield from thread %d\n", me->id);
     fflush(stdout);
     if (!me->deps && !me->blocked) {
-            printf("THREAD YIELD: push myself to queue from thead %d\n", me->id);
+            // printf("THREAD YIELD: push myself to queue from thead %d\n", me->id);
             fflush(stdout);
+            //pthread_mutex_lock(&lock_queue);
             enqueue_head(ready_queue, (queue_t *) me);
+            // print_queue(ready_queue);
+            //pthread_mutex_unlock(&lock_queue);
     }
-    
-    if (swapcontext(&(me->context), &uctx_scheduler) == -1) {
+    // printf("YEILDDDDDDDDDDDDd\n");
+    // printf("%d\n", kernel_thr[me->kernel_thread_id].pid);
+    fflush(stdout);
+    if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
         handle_error("swapcontext");
     }
     return 0;
@@ -180,28 +234,41 @@ int thread_yield() {
 void thread_exit() {
     thread_t *me;
 
+    // printf("THREAD EXIT\n");
+    fflush(stdout);
+
     me = thread_self();
     if(me->alive == 1) {
-        printf("THREAD EXIT: exiting thread %d\n", me->id);
-        printf("THREAD EXIT: my successors are %d\n", me->num_successors);
+        (me->context).uc_link = kernel_thr[me->kernel_thread_id].context;
+        // printf("THREAD EXIT: %p, %d \n", kernel_thr[me->kernel_thread_id].context, me->kernel_thread_id);
+        // fflush(stdout);
+        // printf("THREAD EXIT: exiting thread %d from native thread %d \n", me->id, me->kernel_thread_id);
+        // printf("THREAD EXIT: thread %d successors are %d\n", me->id, me->num_successors);
         fflush(stdout);
         for (int i = 0; i < me->num_successors; i++) {
-            printf("THREAD EXIT: descent the deps %d from thread %d\n", me->successors[i]->deps, me->successors[i]->id);
+            // printf("THREAD EXIT: thread %d descent the deps %d from thread %d\n", me->id, me->successors[i]->deps, me->successors[i]->id);
             fflush(stdout);
-            me->successors[i]->deps--;
+            __atomic_sub_fetch(&(me->successors[i]->deps), 1, __ATOMIC_SEQ_CST);
+            // me->successors[i]->deps--;
             if(me->successors[i]->deps == 0 && !me->successors[i]->blocked) {
-                printf("THREAD EXIT: successor %d has 0 deps, adding him in the queue\n", me->successors[i]->id);
+                // printf("THREAD EXIT: thread %d successor %d has 0 deps, adding him in the queue\n", me->id, me->successors[i]->id);
                 fflush(stdout);
+                //pthread_mutex_lock(&lock_queue);
                 enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
+                // print_queue(ready_queue);
+                //pthread_mutex_unlock(&lock_queue);
             }
         }
     }
     me->alive = 0;
+    // if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
+    //     handle_error("swapcontext");
+    // }
 }
 
 int thread_lib_exit() {
     
-    printf("THREAD LIB EXIT: exit library\n");
+    // printf("THREAD LIB EXIT: exit library\n");
     fflush(stdout);
 
 #ifdef REUSE_STACK
@@ -225,10 +292,13 @@ int thread_lib_exit() {
 void free_thread(thread_t *thr) {
 
 #ifdef REUSE_STACK
-    if (thr->id && thr_reuse.capacity < thr_reuse.max_capacity) {
-        printf("FREE_THREAD: will reuse the stack of thread %d, descriptors queue has size %d\n", thr->id, thr_reuse.capacity);
+    if (thr->id /*&& thr_reuse.capacity < thr_reuse.max_capacity*/) {
+        // printf("FREE_THREAD: will reuse the stack of thread %d, descriptors queue has size %d\n", thr->id, thr_reuse.capacity);
+        //pthread_mutex_lock(&lock_stack_queue);
         enqueue_tail(thr_reuse.descriptors, (queue_t *) thr);
         thr_reuse.capacity++;
+        //pthread_mutex_unlock(&lock_stack_queue);
+        // printf("~~~~~~~~~~~~~`\n");
     }
 #else
     if (thr->id) {
@@ -241,21 +311,32 @@ void free_thread(thread_t *thr) {
 #endif
 }
 
-void scheduler(void) {
+void scheduler(void *id) {
     thread_t *running_thread;
+    int native_thread = *((int *)id);
 
     while(1) {
+        //pthread_mutex_lock(&lock_queue);
         running_thread = (thread_t *) dequeue_tail(ready_queue);
-        if(running_thread == NULL){
+        //pthread_mutex_unlock(&lock_queue);
+        // // printf("SCHEDULER: %p from kernel thread %d\n", running_thread, native_thread);
+        // fflush(stdout);
+        if (running_thread == NULL) {
             continue;
         }
-        printf("SCHEDULER: queue is not empty, run the next thread %d\n", running_thread->id);
-        fflush(stdout);
+        // print_queue(ready_queue);
 
-        if (swapcontext(&uctx_scheduler, &(running_thread->context)) == -1) {
+        printf("SCHEDULER: run the next thread %d from kernel thread %d\n", running_thread->id, native_thread);
+        fflush(stdout);
+        sleep(1);
+
+        running_thread->kernel_thread_id = native_thread;
+        if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
             handle_error("swapcontext");
         }
 
+        printf("SCHEDULER: return of thread thread %d on kernel thread %d\n", running_thread->id, native_thread);
+        fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);
         }

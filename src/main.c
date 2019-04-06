@@ -19,12 +19,13 @@ void work(void *arg) {
 
     id = thread_getid();
 
-    for (i=0; i<5; i++) {
-        printf("%s id=%d: %d, %p\n", (char *)arg, id, i, &i);
-        fflush(stdout);
-        // sleep(1);
-        thread_yield();
-    }
+    // for (i=0; i<5; i++) {
+    //     printf("%s id=%d: %d, %p\n", (char *)arg, id, i, &i);
+    //     fflush(stdout);
+    //     // sleep(1);
+    //     thread_yield();
+    // }
+    printf("%s id=%d\n", (char *)arg, id);
 
     // thread_inc_dependency(1);
     // thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));
@@ -44,18 +45,18 @@ int main(int argc, char *argv[]) {
       t1 --> t4
      */
 
-    thread_lib_init(1);
+    thread_lib_init(2);
+    thread_inc_dependency(4);
 
-    t4 = thread_create(work, "t4", 1, THREAD_LIST2(1, thread_self()));
-    t3 = thread_create(work, "t3", 1, THREAD_LIST2(1, thread_self()));
-    t2 = thread_create(work, "t2", 1, THREAD_LIST2(1, thread_self()));
-    t1 = thread_create(work, "t1", 0, THREAD_LIST2(3, t2, t3, t4));
+    t4 = thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
+    t3 = thread_create(work, "t3", 0, THREAD_LIST(thread_self()));
+    t2 = thread_create(work, "t2", 0, THREAD_LIST(thread_self()));
+    t1 = thread_create(work, "t1", 0, THREAD_LIST(thread_self()));
 
-    thread_inc_dependency(3);
 
     thread_yield();
     printf("in main, id = %d\n", thread_getid());
-
+    fflush(stdout);
     thread_exit();
 
     printf("OK\n");
