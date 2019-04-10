@@ -27,7 +27,8 @@ typedef struct thr_descriptor {
   int id;
   char *stack;
   ucontext_t context;
-  int deps;
+  volatile int deps;
+  volatile int old_deps;
   int num_successors;
   int alloc_successors;
   int alive;
@@ -61,7 +62,7 @@ ucontext_t uctx_scheduler;
 queue_t *ready_queue;
 thread_t main_thread;
 long int native_stack_size;
-int thread_next_id;
+volatile int thread_next_id;
 
 int thread_getid();
 int thread_yield();

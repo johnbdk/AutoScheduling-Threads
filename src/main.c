@@ -56,6 +56,7 @@ int main(int argc, char *argv[]) {
 
 
     thread_yield();
+    // sleep(10);
     printf("in main, id = %d\n", thread_getid());
     fflush(stdout);
     thread_exit();

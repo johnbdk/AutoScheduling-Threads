@@ -6,7 +6,7 @@ CFLAGS = -g -Wall
 
 # Debug flags
 # Variable REUSE_STACK to reuse thread_descriptors
-DBGFLAGS = -DREUSE_STACK
+DBGFLAGS = #-DREUSE_STACK
 
 # Compile with -O3 optimization
 OPTFLAGS = -O3
