@@ -35,7 +35,7 @@ void enqueue_tail(queue_t *head, queue_t *element) {    // put in tail (low prio
 
 	pthread_mutex_lock(&lock_queue);
     if (head == NULL) {
-        printf("hereee\n");
+        // printf("hereee\n");
 		pthread_mutex_unlock(&lock_queue);
         return;
     }
