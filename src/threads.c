@@ -97,14 +97,10 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thread_t *thr;
 
 #ifdef REUSE_STACK
-    //pthread_mutex_lock(&lock_stack_queue);
-    int empty_descriptors = queue_empty(thr_reuse.descriptors);
-    //pthread_mutex_unlock(&lock_stack_queue);
-    if (!empty_descriptors) {
-        // printf("THREAD CREATE: got reuse thread descriptor\n");
-        //pthread_mutex_lock(&lock_stack_queue);
-        thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
-        //pthread_mutex_unlock(&lock_stack_queue);
+    int empty_descriptors = 1;
+    thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
+    if (thr != NULL) {
+    	empty_descriptors = 0;
         thr_reuse.capacity--; 
     }
     else {
@@ -273,14 +269,16 @@ int thread_lib_exit() {
 
 #ifdef REUSE_STACK
     thread_t *thr;
-    while (!queue_empty(thr_reuse.descriptors)){
-        thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
+
+    thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
+    while (thr != NULL) {
         (thr_reuse.capacity)--;
         if (thr->num_successors > 0) {
             free(thr->successors);
         }
         free(thr->stack);
         free(thr);
+        thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
     }
 #endif
     free(main_thread.successors);
@@ -328,7 +326,7 @@ void scheduler(void *id) {
 
         printf("SCHEDULER: run the next thread %d from kernel thread %d\n", running_thread->id, native_thread);
         fflush(stdout);
-        // sleep(1);
+        sleep(1);
 
         running_thread->kernel_thread_id = native_thread;
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {

@@ -12,7 +12,7 @@ typedef struct queue {
     struct queue *prev;
 } queue_t;
 
-int queue_empty(queue_t *head);
+// int queue_empty(queue_t *head);
 queue_t *queue_create();
 void enqueue_head(queue_t *head, queue_t *element);
 void enqueue_tail(queue_t *head, queue_t *element);

@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
       t1 --> t4
      */
 
-    thread_lib_init(2);
+    thread_lib_init(4);
     thread_inc_dependency(4);
 
     t4 = thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
