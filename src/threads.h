@@ -28,7 +28,7 @@ typedef struct thr_descriptor {
   char *stack;
   ucontext_t context;
   volatile int deps;
-  volatile int old_deps;
+  int self_inced;       //
   int num_successors;
   int alloc_successors;
   int alive;
