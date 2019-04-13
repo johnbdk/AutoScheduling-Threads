@@ -19,6 +19,9 @@ int thread_lib_init(int native_threads) {
     char *native_thread_stack;
     static ucontext_t uctx_main;
 
+    no_threads = 0;
+    terminate = 0;
+
 #ifdef REUSE_STACK
     thr_reuse.descriptors = queue_create();
     thr_reuse.capacity = 0;
@@ -111,6 +114,7 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thr->next = NULL;
     thr->prev = NULL;
 
+    __sync_fetch_and_add(&no_threads, 1);
     thr->id = __sync_fetch_and_add(&thread_next_id, 1);
     thr->deps = deps;
     thr->self_inced = 0;
@@ -214,8 +218,10 @@ void thread_exit() {
         }
     }
     me->alive = 0;
-    if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
-        handle_error("swapcontext");
+    if (me->id) {
+        if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
+            handle_error("swapcontext");
+        }
     }
 }
 
@@ -223,6 +229,8 @@ int thread_lib_exit() {
     
 #ifdef REUSE_STACK
     thread_t *thr;
+
+    while (no_threads);
 
     thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
     while (thr != NULL) {
@@ -239,6 +247,8 @@ int thread_lib_exit() {
     free(main_thread.successors);
     free(ready_queue);
     free(uctx_scheduler.uc_stack.ss_sp);
+
+    terminate = 1;
     return 0;
 }
 
@@ -266,7 +276,7 @@ void scheduler(void *id) {
     int native_thread = *((int *)id);
     int temp_deps;
 
-    while(1) {
+    while(!terminate) {
         running_thread = (thread_t *) dequeue_tail(ready_queue);
         if (running_thread == NULL) {
             continue;
@@ -283,18 +293,16 @@ void scheduler(void *id) {
 
         printf("SCHEDULER: return of thread thread %d on kernel thread %d\n", running_thread->id, native_thread);
         fflush(stdout);
-        printf("%d deps of main %d\n", main_thread.id, main_thread.deps);
-        fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);
+            __sync_fetch_and_add(&no_threads, -1);
         }
-        else{
-
-            if(running_thread->self_inced){
+        else {
+            if (running_thread->self_inced) {
                 temp_deps = __sync_fetch_and_add(&running_thread->deps, -1);
                 running_thread->self_inced = 0;
             }
-            else{
+            else {
                 temp_deps = 1;
             }
             if (temp_deps == 1 && !running_thread->blocked) {

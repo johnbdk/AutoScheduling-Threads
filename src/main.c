@@ -14,7 +14,6 @@
 // }
 
 void work(void *arg) {
-    int i;
     int id;
 
     id = thread_getid();
@@ -35,11 +34,6 @@ void work(void *arg) {
 }
 
 int main(int argc, char *argv[]) {
-    thread_t *t1;
-    thread_t *t2;
-    thread_t *t3;
-    thread_t *t4;
-
     /*
       t1 --> t2
       t1 --> t3
@@ -49,11 +43,10 @@ int main(int argc, char *argv[]) {
     thread_lib_init(4);
     thread_inc_dependency(4);
 
-    t4 = thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
-    t3 = thread_create(work, "t3", 0, THREAD_LIST(thread_self()));
-    t2 = thread_create(work, "t2", 0, THREAD_LIST(thread_self()));
-    t1 = thread_create(work, "t1", 0, THREAD_LIST(thread_self()));
-
+    thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t3", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t2", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t1", 0, THREAD_LIST(thread_self()));
 
     thread_yield();
     // sleep(10);

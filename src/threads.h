@@ -58,6 +58,8 @@ queue_t *ready_queue;
 thread_t main_thread;
 long int native_stack_size;
 volatile int thread_next_id;
+volatile int no_threads;
+int terminate;
 
 int thread_getid();
 int thread_yield();
