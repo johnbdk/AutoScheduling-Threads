@@ -6,10 +6,12 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <pthread.h>
+#include "lock.h"
 
 typedef struct queue {
     struct queue *next;
     struct queue *prev;
+    lock_t lock;
 } queue_t;
 
 int queue_empty(queue_t *head);

@@ -9,13 +9,11 @@
 #include <malloc.h>
 #include <unistd.h>
 #include <string.h>
-#include <pthread.h>
 #include <stdarg.h>
 #include <sys/resource.h>
 #include <sched.h>
 #include <signal.h>
 #include "queue.h"
-#include <pthread.h>
 
 #define PAGE sysconf(_SC_PAGE_SIZE)
 #define STACK_SIZE sysconf(_SC_PAGE_SIZE)*8
@@ -54,9 +52,6 @@ typedef struct thr_descriptor_reuse {
 
 thread_reuse_t thr_reuse;
 #endif
-
-pthread_mutex_t lock_queue;
-pthread_mutex_t lock_stack_queue;
 
 ucontext_t uctx_scheduler;
 queue_t *ready_queue;
