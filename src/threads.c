@@ -1,13 +1,17 @@
 #include "threads.h"
 
-int create_kernel_thread(kernel_thread_t *kernel_thr) {
+void create_kernel_thread(kernel_thread_t *kernel_thr) {
 
     char *stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);
     kernel_thr->stack = stack + STACK_SIZE;
-    return clone(&wrapper_scheduler, kernel_thr->stack, CLONE_VM, (void *)&kernel_thr->pid);       //CLONE_VM
+    printf("@@@ %d\n",kernel_thr->pid);
+	fflush(stdout);
+    clone(&wrapper_scheduler, kernel_thr->stack, CLONE_VM, (void *)&kernel_thr->pid);       //CLONE_VM
 }
 
 int wrapper_scheduler(void *id) {
+	printf("### %d\n",*((int *) id));
+	fflush(stdout);
     scheduler(id);
     return 1;
 }
@@ -116,6 +120,7 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
 
     __sync_fetch_and_add(&no_threads, 1);
     thr->id = __sync_fetch_and_add(&thread_next_id, 1);
+    printf("THREAD CREATE %d\n", thr->id);
     thr->deps = deps;
     thr->self_inced = 0;
     thr->alive = 1;
@@ -203,10 +208,10 @@ int thread_yield() {
 void thread_exit() {
     thread_t *me;
 
-    // printf("THREAD EXIT\n");
-    //flush(stdout);
 
     me = thread_self();
+    printf("THREAD EXIT %d\n",me->id);
+    fflush(stdout);
     if(me->alive == 1) {
         for (int i = 0; i < me->num_successors; i++) {
             int curr_deps = __sync_fetch_and_add(&(me->successors[i]->deps), -1);
@@ -219,6 +224,7 @@ void thread_exit() {
     }
     me->alive = 0;
     if (me->id) {
+    	// print_queue(ready_queue);
         if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
             handle_error("swapcontext");
         }
@@ -282,7 +288,7 @@ void scheduler(void *id) {
             continue;
         }
         // print_queue(ready_queue);
-        printf("SCHEDULER: run the next thread %d from kernel thread %d\n", running_thread->id, native_thread);
+        printf("SCHEDULER: run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, ready_queue);
         fflush(stdout);
 
         running_thread->kernel_thread_id = native_thread;
@@ -291,7 +297,7 @@ void scheduler(void *id) {
             handle_error("swapcontext");
         }
 
-        printf("SCHEDULER: return of thread thread %d on kernel thread %d\n", running_thread->id, native_thread);
+        printf("SCHEDULER: return of thread thread %d on kernel thread %d, queue: %p\n", running_thread->id, native_thread, ready_queue);
         fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);

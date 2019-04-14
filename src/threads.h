@@ -66,7 +66,7 @@ int thread_yield();
 int thread_lib_exit();
 int wrapper_scheduler(void *id);
 int thread_lib_init(int native_threads);
-int create_kernel_thread();
+void create_kernel_thread(kernel_thread_t *thr);
 int thread_inc_dependency(int num_deps);
 void thread_exit();
 void scheduler(void *id);
