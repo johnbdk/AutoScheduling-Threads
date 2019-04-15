@@ -14,8 +14,9 @@ void lock_acquire(lock_t *lock) {
 }
 
 void lock_release(lock_t *lock) {
-	asm volatile (
-		"movl $0, %0;" 
-    	:"=r"(*lock)
-    );
+	// asm volatile (
+	// 	"movl $0, %0;" 
+ //    	:"=r"(*lock)
+ //    );
+    *lock = 0;
 }

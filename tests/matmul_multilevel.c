@@ -1,11 +1,11 @@
 #include <stdio.h>
 #include "threads.h"
 
-#define SIZE	1024
-#define CHUNK	128
+#define SIZE    1024
+#define CHUNK   128
 double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 
-thread_t _thread[SIZE][SIZE / CHUNK];
+thread_t *_thread[SIZE][SIZE / CHUNK];
 
 union args {
     void *arg;
@@ -42,39 +42,25 @@ void thread_func(void *arg) {
     argument.indices[0] = row;
     for(col = 0; col < SIZE; col = col+CHUNK) {
         argument.indices[1] = col;
-        thread_create(&_thread[row][i++], worker_func, argument.arg, 0, THREAD_LIST(self));
+        _thread[row][i++] = thread_create(worker_func, argument.arg, 0, THREAD_LIST(self));
     }
 //    printf("Thread %d done creating threads\n", thread_getid());
     thread_yield();
 }
 
 
-void init_arrays() {
-    unsigned long i, j;
-    for (i = 0; i < SIZE; i++)
-        for (j = 0; j < SIZE; j++) {
-            A[i][j] = B[i][j] = (i == j);
-        }
-}
-
 int main (int argc, char *argv[]) {
     thread_t *myself;
-    unsigned long i, j;
+    unsigned long i,j;
 
-    thread_t thread[SIZE];
+    // thread_t *thread[SIZE];
 
-    if(argc < 2){
-        printf("argv[1] is empty\n");
-        return 1;
-    }
-    reuse_stacks = (int) strtol(argv[1], NULL, 10);
-
-    init_arrays();
-    thread_lib_init(1);
+    thread_lib_init(4);
     myself = thread_self();
     thread_inc_dependency(SIZE);
-    for (i = 0; i < SIZE; i++)
-        thread_create(&thread[i], thread_func, (void *)i, 0, THREAD_LIST(myself));
+    for (i = 0; i < SIZE; i++){
+        /*thread[i] = */thread_create(thread_func, (void *)i, 0, THREAD_LIST(myself));
+    }
 
     thread_yield();
 

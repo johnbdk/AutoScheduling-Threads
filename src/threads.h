@@ -62,6 +62,7 @@ long int native_stack_size;
 volatile int thread_next_id;
 volatile int no_threads;
 volatile int no_native_threads;
+int num_native_threads;
 int terminate;
 
 int thread_getid();
