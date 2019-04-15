@@ -310,53 +310,24 @@ void work_stealing(int native_thread) {
 
     if (no_native_threads == 2) {
         stealing = 1 / 2.;
+
         if (native_thread == 0) {
             //printf("2 WORK STEALING: 2 native threads, from %d\n", native_thread);
-            first_num_threads_steal = kernel_thr[1].num_threads * stealing;
-            first_queue = kernel_thr[1].ready_queue;
-            first_native_thread = 1;
-        }
-        else {
-            //printf("3 WORK STEALING: 2 native threads, from %d\n", native_thread);
-            first_num_threads_steal = kernel_thr[0].num_threads * stealing;
-            first_queue = kernel_thr[0].ready_queue;
-            first_native_thread = 0;
+            first_native_thread = native_thread % 2;
+            first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
+            first_queue = kernel_thr[first_native_thread].ready_queue;
         }
     }
     else {
         stealing = 1 / 3.;
-        if (native_thread == 0) {
-            // printf("4 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-            first_num_threads_steal = kernel_thr[1].num_threads * stealing;
-            first_queue = kernel_thr[1].ready_queue;
-            first_native_thread = 1;
+        // printf("4 WORK STEALING: > 2 native threads, from %d\n", native_thread);
+        first_native_thread = (native_thread - 1) % no_native_threads;
+        first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
+        first_queue = kernel_thr[first_native_thread].ready_queue;
 
-            second_num_threads_steal  = kernel_thr[no_native_threads - 1].num_threads * stealing;
-            second_queue = kernel_thr[no_native_threads - 1].ready_queue;
-            second_native_thread = no_native_threads - 1;
-        }
-        else if (native_thread == (no_native_threads - 1)) {
-            //printf("5 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-            first_num_threads_steal = kernel_thr[(native_thread - 1) - 1].num_threads * stealing;
-            first_queue = kernel_thr[(native_thread - 1) - 1].ready_queue;
-            first_native_thread = (native_thread - 1) - 1;
-
-            second_num_threads_steal  = kernel_thr[0].num_threads * stealing;
-            second_queue = kernel_thr[0].ready_queue;
-            second_native_thread = 0;
-
-        }
-        else {
-            // printf("6 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-            
-            first_num_threads_steal = kernel_thr[native_thread - 1].num_threads * stealing;
-            first_queue = kernel_thr[native_thread - 1].ready_queue;
-            first_native_thread = native_thread - 1;
-
-            second_num_threads_steal  = kernel_thr[native_thread + 1].num_threads * stealing;
-            second_queue = kernel_thr[native_thread + 1].ready_queue;
-            second_native_thread = native_thread + 1;
-        }
+        second_native_thread = (native_thread + 1) % no_native_threads;
+        second_num_threads_steal  = kernel_thr[second_native_thread].num_threads * stealing;
+        second_queue = kernel_thr[second_native_thread].ready_queue;
     }
 
     // printf("WORK STEALING: first num %d, second num %d, first queue %p, second queue %p\n",
