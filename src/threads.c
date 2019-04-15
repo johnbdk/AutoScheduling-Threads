@@ -310,13 +310,11 @@ void work_stealing(int native_thread) {
 
     if (no_native_threads == 2) {
         stealing = 1 / 2.;
-
-        if (native_thread == 0) {
-            //printf("2 WORK STEALING: 2 native threads, from %d\n", native_thread);
-            first_native_thread = native_thread % 2;
-            first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
-            first_queue = kernel_thr[first_native_thread].ready_queue;
-        }
+        
+        //printf("2 WORK STEALING: 2 native threads, from %d\n", native_thread);
+        first_native_thread = native_thread % 2;
+        first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
+        first_queue = kernel_thr[first_native_thread].ready_queue;
     }
     else {
         stealing = 1 / 3.;
