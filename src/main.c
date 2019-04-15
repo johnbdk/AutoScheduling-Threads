@@ -1,63 +1,80 @@
 #include <stdio.h>
-#include <unistd.h>
-
 #include "threads.h"
 
-// void work2(void *arg) {
-//     int id;
+#define SIZE    1024
+#define CHUNK   128
+double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 
-//     id = thread_getid();
-//     printf("%s id=%d\n", (char *)arg, id);
-//     fflush(stdout);
+thread_t *_thread[SIZE][SIZE / CHUNK];
 
-//     thread_exit();
-// }
+union args {
+    void *arg;
+    int indices[2];
+};
 
-void work(void *arg) {
-    int id;
+void worker_func(void *arg) {
+    unsigned long row = ((union args)arg).indices[0];
+    unsigned long col_start = ((union args)arg).indices[1];
+    unsigned long col, k;
 
-    id = thread_getid();
-
-    // for (i=0; i<5; i++) {
-    //     printf("%s id=%d: %d, %p\n", (char *)arg, id, i, &i);
-    //     fflush(stdout);
-    //     // sleep(1);
-    //     thread_yield();
-    // }
-    printf("%s id=%d\n", (char *)arg, id);
-    fflush(stdout);
-
-    // thread_inc_dependency(1);
-    // thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));
-    // thread_yield();
-    thread_exit();
+//    printf("Thread %d working row %lu, col_start %lu\n", thread_getid(), row, col_start);
+    for(col = col_start; col < col_start+CHUNK; col++) {
+        C[row][col] = 0;
+        for (k = 0; k < SIZE; k++) {
+            C[row][col] += A[row][k]*B[k][col];
+        }
+//        thread_yield();
+    }
+//    printf("Thread %d done\n", thread_getid());
 }
 
-int main(int argc, char *argv[]) {
-    /*
-      t1 --> t2
-      t1 --> t3
-      t1 --> t4
-     */
+void thread_func(void *arg) {
+    unsigned long row = (unsigned long)arg;
+    unsigned long col;
+    union args argument;
+
+    thread_t *self = thread_self();
+
+    int i = 0;
+
+//    printf("Thread %d creating threads\n", thread_getid());
+    thread_inc_dependency(SIZE/CHUNK);
+    argument.indices[0] = row;
+    for(col = 0; col < SIZE; col = col+CHUNK) {
+        argument.indices[1] = col;
+        _thread[row][i++] = thread_create(worker_func, argument.arg, 0, THREAD_LIST(self));
+    }
+//    printf("Thread %d done creating threads\n", thread_getid());
+    thread_yield();
+}
+
+
+int main (int argc, char *argv[]) {
+    thread_t *myself;
+    unsigned long i,j;
+
+    // thread_t *thread[SIZE];
 
     thread_lib_init(4);
-    thread_inc_dependency(4);
-
-    thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
-    thread_create(work, "t3", 0, THREAD_LIST(thread_self()));
-    thread_create(work, "t2", 0, THREAD_LIST(thread_self()));
-    thread_create(work, "t1", 0, THREAD_LIST(thread_self()));
+    myself = thread_self();
+    thread_inc_dependency(SIZE);
+    for (i = 0; i < SIZE; i++){
+        /*thread[i] = */thread_create(thread_func, (void *)i, 0, THREAD_LIST(myself));
+    }
 
     thread_yield();
-    // sleep(10);
-    printf("in main, id = %d\n", thread_getid());
-    fflush(stdout);
-    // sleep(5);
-    thread_exit();
 
-    printf("OK\n");
-
+    printf("Finished\n");
     thread_lib_exit();
-
-    return 0;
+    for (i = 0; i < SIZE; i++) {
+        for (j = 0; j < SIZE; j++) {
+            if (i != j) {
+                if (C[i][j] != 0.0)
+                    printf("Error (%lu, %lu)\n", i, j);
+            }
+            else if (C[i][j] != 1.0)
+                printf("ErrorB (%lu, %lu)\n", i, j);
+        }
+    }
+    return(0);
 }

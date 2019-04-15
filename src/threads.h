@@ -14,6 +14,7 @@
 #include <sched.h>
 #include <signal.h>
 #include "queue.h"
+#include <pthread.h>
 
 #define PAGE sysconf(_SC_PAGE_SIZE)
 #define STACK_SIZE sysconf(_SC_PAGE_SIZE)*8
@@ -37,7 +38,8 @@ typedef struct thr_descriptor {
 
 typedef struct kernel_thread {
   int pid;
-  char *stack;
+  // char *stack;
+  pthread_t *thr;
   ucontext_t *context;  // padding
 } kernel_thread_t;
 
@@ -59,12 +61,13 @@ thread_t main_thread;
 long int native_stack_size;
 volatile int thread_next_id;
 volatile int no_threads;
+volatile int no_native_threads;
 int terminate;
 
 int thread_getid();
 int thread_yield();
 int thread_lib_exit();
-int wrapper_scheduler(void *id);
+void *wrapper_scheduler(void *id);
 int thread_lib_init(int native_threads);
 void create_kernel_thread(kernel_thread_t *thr);
 int thread_inc_dependency(int num_deps);

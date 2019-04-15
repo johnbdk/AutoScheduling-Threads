@@ -6,8 +6,8 @@ CFLAGS = -g -Wall
 
 # Debug flags
 # Variable REUSE_STACK to reuse thread_descriptors
-DBGFLAGS = #-DREUSE_STACK
-
+DBGFLAGS = -DREUSE_STACK
+LFLAGS = -lpthread
 # Compile with -O3 optimization
 OPTFLAGS = -O3
 
@@ -18,10 +18,10 @@ OBJ = obj
 SOURCES = $(wildcard $(SRC)/*.c)
 OBJECTS = $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SOURCES))
 main: $(OBJECTS)
-	$(CC) $(CFLAGS) $^ -o $@ $(DBGFLAGS)
+	$(CC) $(CFLAGS) $^ -o $@ $(DBGFLAGS) $(LFLAGS)
 
 $(OBJ)/%.o: $(SRC)/%.c
-	$(CC) $(CFLAGS) -I$(SRC) -c $< -o $@ $(DBGFLAGS)
+	$(CC) $(CFLAGS) -I$(SRC) -c $< -o $@ $(DBGFLAGS) $(LFLAGS)
 
 debug: DBGFLAGS = -DDEBUGL -DDEBUGH
 debug: main
