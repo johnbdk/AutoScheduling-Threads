@@ -5,8 +5,6 @@
 #define CHUNK	128
 double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 
-thread_t _thread[SIZE][SIZE / CHUNK];
-
 union args {
     void *arg;
     int indices[2];
@@ -35,14 +33,12 @@ void thread_func(void *arg) {
 
     thread_t *self = thread_self();
 
-    int i = 0;
-
 //    printf("Thread %d creating threads\n", thread_getid());
     thread_inc_dependency(SIZE/CHUNK);
     argument.indices[0] = row;
     for(col = 0; col < SIZE; col = col+CHUNK) {
         argument.indices[1] = col;
-        thread_create(&_thread[row][i++], worker_func, argument.arg, 0, THREAD_LIST(self));
+        thread_create(worker_func, argument.arg, 0, THREAD_LIST(self));
     }
 //    printf("Thread %d done creating threads\n", thread_getid());
     thread_yield();
@@ -61,20 +57,12 @@ int main (int argc, char *argv[]) {
     thread_t *myself;
     unsigned long i, j;
 
-    thread_t thread[SIZE];
-
-    if(argc < 2){
-        printf("argv[1] is empty\n");
-        return 1;
-    }
-    reuse_stacks = (int) strtol(argv[1], NULL, 10);
-
     init_arrays();
     thread_lib_init(1);
     myself = thread_self();
     thread_inc_dependency(SIZE);
     for (i = 0; i < SIZE; i++)
-        thread_create(&thread[i], thread_func, (void *)i, 0, THREAD_LIST(myself));
+        thread_create(thread_func, (void *)i, 0, THREAD_LIST(myself));
 
     thread_yield();
 

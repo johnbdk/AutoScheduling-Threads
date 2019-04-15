@@ -26,7 +26,7 @@ typedef struct thr_descriptor {
   char *stack;
   ucontext_t context;
   volatile int deps;
-  int self_inced;       //
+  int self_inced;
   int num_successors;
   int alloc_successors;
   int alive;
@@ -36,9 +36,11 @@ typedef struct thr_descriptor {
 } thread_t;
 
 typedef struct kernel_thread {
-  int pid;
+  int id;
   char *stack;
   ucontext_t *context;  // padding
+  queue_t *ready_queue;
+  volatile int num_threads;
 } kernel_thread_t;
 
 kernel_thread_t *kernel_thr;
@@ -54,11 +56,11 @@ thread_reuse_t thr_reuse;
 #endif
 
 ucontext_t uctx_scheduler;
-queue_t *ready_queue;
 thread_t main_thread;
 long int native_stack_size;
 volatile int thread_next_id;
 volatile int no_threads;
+int no_native_threads;
 int terminate;
 
 int thread_getid();
@@ -66,12 +68,13 @@ int thread_yield();
 int thread_lib_exit();
 int wrapper_scheduler(void *id);
 int thread_lib_init(int native_threads);
-void create_kernel_thread(kernel_thread_t *thr);
 int thread_inc_dependency(int num_deps);
 void thread_exit();
 void scheduler(void *id);
-void wrapper_func(void (body)(void *), void *arg);
 void free_thread(thread_t *thr);
+void work_stealing(int native_thread);
+void create_kernel_thread(kernel_thread_t *thr);
+void wrapper_func(void (body)(void *), void *arg);
 thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *successors[]);
 thread_t *thread_self();
 thread_t **THREAD_LIST(thread_t *successor);

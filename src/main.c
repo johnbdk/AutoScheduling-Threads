@@ -24,8 +24,8 @@ void work(void *arg) {
     //     // sleep(1);
     //     thread_yield();
     // }
-    printf("%s id=%d\n", (char *)arg, id);
-    fflush(stdout);
+    // printf("%s id=%d\n", (char *)arg, id);
+    // fflush(stdout);
 
     // thread_inc_dependency(1);
     // thread_create(work2, "GGG", 0, THREAD_LIST(thread_self()));
@@ -38,11 +38,15 @@ int main(int argc, char *argv[]) {
       t1 --> t2
       t1 --> t3
       t1 --> t4
+      t1 --> t5
+      t1 --> t6
      */
 
     thread_lib_init(4);
-    thread_inc_dependency(4);
+    thread_inc_dependency(6);
 
+    thread_create(work, "t6", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t5", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t4", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t3", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t2", 0, THREAD_LIST(thread_self()));
