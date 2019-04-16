@@ -34,6 +34,14 @@ void worker_func(void *arg) {
 //    printf("Thread %d done\n", thread_getid());
 }
 
+void init_arrays() {
+    unsigned long i, j;
+    for (i = 0; i < SIZE; i++)
+        for (j = 0; j < SIZE; j++) {
+            A[i][j] = B[i][j] = (i == j);
+        }
+}
+
 void thread_func(void *arg) {
     unsigned long row = (unsigned long)arg;
     unsigned long col;
@@ -42,6 +50,7 @@ void thread_func(void *arg) {
     thread_t *self = thread_self();
 
     int i = 0;
+
 
 //    printf("Thread %d creating threads\n", thread_getid());
     thread_inc_dependency(SIZE/CHUNK);
@@ -62,6 +71,9 @@ int main (int argc, char *argv[]) {
 
     // thread_t *thread[SIZE];
     // lock_init(&lock);
+
+    init_arrays();
+
 
     thread_lib_init(4);
     myself = thread_self();

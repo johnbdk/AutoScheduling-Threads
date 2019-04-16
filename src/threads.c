@@ -72,6 +72,7 @@ int thread_lib_init(int native_threads) {
     makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].pid);
 
     enqueue_head(ready_queue, (queue_t *) &main_thread);
+    
     if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
         handle_error("swapcontext");
     }

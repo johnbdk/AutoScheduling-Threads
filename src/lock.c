@@ -5,18 +5,17 @@ void lock_init(lock_t *lock) {
 }
 
 void lock_acquire(lock_t *lock) {
-	while (!__sync_bool_compare_and_swap(lock, 0, 1)) {
-    	sched_yield();
-    	// while(*p){
-    	// 	_mm_pause();
-    	// }
-    }
+    int res;
+
+    do {
+        while (*lock) {
+            _mm_pause();
+        } 
+    	res = __sync_bool_compare_and_swap(lock, 0, 1);
+    } while (!res);
+    
 }
 
 void lock_release(lock_t *lock) {
-	// asm volatile (
-	// 	"movl $0, %0;" 
- //    	:"=r"(*lock)
- //    );
     *lock = 0;
 }
