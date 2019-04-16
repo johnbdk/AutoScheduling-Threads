@@ -23,8 +23,8 @@ int thread_lib_init(int native_threads) {
     char *native_thread_stack;
     static ucontext_t uctx_main;
 
+    /* Variables for library termination */
     no_threads = 0;
-    no_native_threads = 0;
     terminate = 0;
     num_native_threads = native_threads;
 
@@ -49,19 +49,18 @@ int thread_lib_init(int native_threads) {
     main_thread.successors[0] = NULL;
     main_thread.context = uctx_main;
     main_thread.kernel_thread_id = 0;
-    // printf("uctx_main is %p\n", &uctx_scheduler);
 
     getrlimit(RLIMIT_STACK, &current_limits);
     native_stack_size = current_limits.rlim_cur;
     
     mask = ~(native_stack_size - 1);
-    native_thread_stack = (char *) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
+    native_thread_stack = (char *) (mask & ((long int)&mask));  // get address of a variable and find begining of stack
     main_thread.context.uc_stack.ss_sp = native_thread_stack;
 
     kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));    // REMEMBER TO FREE
-    kernel_thr[0].pid = 0;                                                             // SAVE MAIN ID, i.e 0 id
-    // kernel_thr[0].stack = native_thread_stack;                                         // FOR COMPLECITY
-    kernel_thr[0].context = /*****/ &uctx_scheduler; /*****/                      // FOR COMPLECITY 
+    kernel_thr[0].pid = 0;                                                              // SAVE MAIN ID, i.e 0 id
+    // kernel_thr[0].stack = native_thread_stack;                                       // FOR COMPLECITY
+    kernel_thr[0].context = &uctx_scheduler;                                            // FOR COMPLECITY 
 
     if (getcontext(&uctx_scheduler) == -1) {
         handle_error("getcontext");
@@ -72,22 +71,20 @@ int thread_lib_init(int native_threads) {
     makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].pid);
 
     enqueue_head(ready_queue, (queue_t *) &main_thread);
-    
     if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
         handle_error("swapcontext");
     }
 
-    for (int i = 0; i < (native_threads - 1); i++) {         // native_threads - 1, cause main has already an id
-        kernel_thr[i + 1].pid = i + 1;
-        kernel_thr[i + 1].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
-        kernel_thr[i + 1].thr = (pthread_t *) malloc(sizeof(pthread_t));  // REMEMBER TO FREE
-        // create_kernel_thread(&kernel_thr[i + 1]);
-        pthread_create(kernel_thr[i + 1].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i + 1].pid);
-        // // printf("CREATED: %d - %p\n",i+1, kernel_thr[i + 1].stack);
+    for (int i = 1; i < native_threads; i++) {
+        kernel_thr[i].pid = i;
+        kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
+        kernel_thr[i].thr = (pthread_t *) malloc(sizeof(pthread_t));        // REMEMBER TO FREE
+        // create_kernel_thread(&kernel_thr[i]);
+        pthread_create(kernel_thr[i].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i].pid);
+        // // printf("CREATED: %d - %p\n",i, kernel_thr[i].stack);
         // // fflush(stdout);
     }
     pthread_setconcurrency(native_threads);
-
     return 0;
 }
 
@@ -175,7 +172,8 @@ thread_t *thread_self() {
     }
 
     mask = ~(STACK_SIZE - 1);
-    self = *(thread_t **) (mask & ((long int)&mask));       // get address of a variable and find begining of stack
+    /*get address of a variable and find begining of stack */
+    self = *(thread_t **) (mask & ((long int)&mask));
 
     return self;
 }
@@ -192,7 +190,7 @@ int thread_inc_dependency(int num_deps) {
     
     me = thread_self();
     me->self_inced = 1;
-    __sync_fetch_and_add(&(me->deps), num_deps+1);                // ????
+    __sync_fetch_and_add(&(me->deps), num_deps + 1);
     return 0;
 }
 
@@ -200,11 +198,9 @@ int thread_yield() {
     thread_t *me;
     
     me = thread_self();
-    // me->old_deps = me->deps;                                     //!!!!!!
     // printf("THREAD YIELD: yield from thread %d\n", me->id);
     // fflush(stdout);
     
-    // TODO mentio to CDA 
     if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
         handle_error("swapcontext");
     }
@@ -214,14 +210,13 @@ int thread_yield() {
 void thread_exit() {
     thread_t *me;
 
-
     me = thread_self();
     // printf("THREAD EXIT %d\n",me->id);
     // fflush(stdout);
-    if(me->alive == 1) {
+    if (me->alive == 1) {
         for (int i = 0; i < me->num_successors; i++) {
             int curr_deps = __sync_fetch_and_add(&(me->successors[i]->deps), -1);
-            if(curr_deps == 1 && !me->successors[i]->blocked) {
+            if (curr_deps == 1 && !me->successors[i]->blocked) {
                 // // printf("THREAD EXIT: thread %d successor %d has 0 deps, adding him in the queue\n", me->id, me->successors[i]->id);
                 //flush(stdout);
                 enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
@@ -230,26 +225,20 @@ void thread_exit() {
     }
     me->alive = 0;
     if (me->id) {
-    	// print_queue(ready_queue);
         if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
             handle_error("swapcontext");
         }
     }
-    // else{
-    // 	print_queue(ready_queue);
-    // }
 }
 
 int thread_lib_exit() {
+
 	printf("THREAD LIB EXIT START\n");
 	fflush(stdout);
 
-    __sync_fetch_and_add(&no_native_threads, -1);
+
 #ifdef REUSE_STACK
     thread_t *thr;
-
-    while (no_threads);
-    printf("1\n");
 
     thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
     while (thr != NULL) {
@@ -263,13 +252,9 @@ int thread_lib_exit() {
         thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
     }
 #endif
-    terminate = 1;
 
     free(main_thread.successors);
     free(uctx_scheduler.uc_stack.ss_sp);
-    printf("2\n");
-    while (no_native_threads);
-    free(ready_queue);
 
     printf("THREAD LIB EXIT END\n");
 	fflush(stdout);
@@ -299,24 +284,18 @@ void scheduler(void *id) {
     thread_t *running_thread;
     int native_thread = *((int *)id);
     int temp_deps;
-
-    __sync_fetch_and_add(&no_native_threads, 1);
-    while(!terminate) {
+    int terminate_local;
+    
+    while (!terminate) {
         running_thread = (thread_t *) dequeue_tail(ready_queue);
         if (running_thread == NULL) {
             continue;
         }
-        // if( !(running_thread->id) && native_thread){
-        //     enqueue_head(ready_queue, (queue_t *) running_thread);
-        //     continue;
-        // }
-        // sleep(0.5);
-        // print_queue(ready_queue);
+
         printf("SCHEDULER: run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, ready_queue);
         fflush(stdout);
 
         running_thread->kernel_thread_id = native_thread;
-        // running_thread->context.uc_link = kernel_thr[native_thread].context;
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
             handle_error("swapcontext");
         }
@@ -325,7 +304,11 @@ void scheduler(void *id) {
         fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);
-            __sync_fetch_and_add(&no_threads, -1);
+            terminate_local = __sync_fetch_and_add(&no_threads, -1);
+            if (terminate_local == 1) {
+                terminate = terminate_local;
+                break;
+            }
         }
         else {
             if (running_thread->self_inced) {
@@ -336,19 +319,16 @@ void scheduler(void *id) {
                 temp_deps = 1;
             }
             if (temp_deps == 1 && !running_thread->blocked) {
-                // // printf("HEREEEEEEE %d with old_deps = %d\n", running_thread->id, running_thread->old_deps);
                 enqueue_head(ready_queue, (queue_t *) running_thread);
             }
         }
         // Push myself to queue from yield so we are protected if another native thread take us before we swapcontex
     }
-    __sync_fetch_and_add(&no_native_threads, -1);
-    if(!native_thread){
-        for (int i = 0; i < (num_native_threads - 1); i++) {
-            pthread_join( *(kernel_thr[i + 1].thr), NULL );
+    if (!native_thread) {
+        for (int i = 1; i < num_native_threads; i++) {
+            pthread_join(*(kernel_thr[i].thr), NULL);
         }
     }
-
 }
 
 void wrapper_func(void (body)(void *), void *arg) {
