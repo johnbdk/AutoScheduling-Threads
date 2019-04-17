@@ -60,6 +60,7 @@ int thread_lib_init(int native_threads) {
     kernel_thr[0].stack = native_thread_stack;                                          // FOR COMPLECITY
     kernel_thr[0].context = &uctx_scheduler;                                            // FOR COMPLECITY 
     kernel_thr[0].ready_queue = queue_create();
+    lock_init(&(kernel_thr[0].lock_stealing));
 
     if (getcontext(&uctx_scheduler) == -1) {
         handle_error("getcontext");
@@ -69,20 +70,21 @@ int thread_lib_init(int native_threads) {
     uctx_scheduler.uc_stack.ss_size = STACK_SIZE;
     makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].id);
 
-    enqueue_head(kernel_thr[0].ready_queue, (queue_t *) &main_thread);
-    if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
-        handle_error("swapcontext");
-    }
-
     for (int i = 1; i < native_threads; i++) {
         kernel_thr[i].ready_queue = queue_create();
         kernel_thr[i].id = i;
         kernel_thr[i].num_threads = 0;
         kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
         printf("ON CREATE: %d - %p\n",i, kernel_thr[i].context);
+        fflush(stdout);
         create_kernel_thread(&kernel_thr[i]);
     }
-    fflush(stdout);
+
+    enqueue_head(kernel_thr[0].ready_queue, (queue_t *) &main_thread);
+    if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
+        handle_error("swapcontext");
+    }
+
 
     return 0;
 }
@@ -296,80 +298,41 @@ void free_thread(thread_t *thr) {
 }
 
 void work_stealing(int native_thread) {
-
-    queue_t *first_queue = NULL, *second_queue = NULL;
-    int first_num_threads_steal = 0, second_num_threads_steal = 0;
-    int first_native_thread, second_native_thread;
-    float stealing = 0;
     thread_t *thr;
+    int k, i, curr_num_threads;
 
     if (no_native_threads == 1) {
         //printf("1 WORK STEALING: no native threads, from %d\n", native_thread);
         return;
     }
 
-    if (no_native_threads == 2) {
-        stealing = 1 / 2.;
-        
-        //printf("2 WORK STEALING: 2 native threads, from %d\n", native_thread);
-        first_native_thread = native_thread % 2;
-        first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
-        first_queue = kernel_thr[first_native_thread].ready_queue;
-    }
-    else {
-        stealing = 1 / 3.;
-        // printf("4 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-        first_native_thread = (native_thread - 1) % no_native_threads;
-        first_num_threads_steal = kernel_thr[first_native_thread].num_threads * stealing;
-        first_queue = kernel_thr[first_native_thread].ready_queue;
+    for (k = 0, i = (native_thread + 1); k < no_native_threads; k++, i = ((i + 1) % no_native_threads)) {
+        lock_acquire(&(kernel_thr[i].lock_stealing));
+        curr_num_threads = kernel_thr[i].num_threads;
+        lock_release(&(kernel_thr[i].lock_stealing));
 
-        second_native_thread = (native_thread + 1) % no_native_threads;
-        second_num_threads_steal  = kernel_thr[second_native_thread].num_threads * stealing;
-        second_queue = kernel_thr[second_native_thread].ready_queue;
-    }
+        if (curr_num_threads > 2) {
+            // printf("curr_num_threads 2 from native %d is %d\n", i, curr_num_threads);
+            thr = (thread_t *) dequeue_head(kernel_thr[i].ready_queue);
+            // printf("thr->id is %d\n", thr->id);
+            if (thr == NULL) {
+                printf("here null\n");
+                continue;
+            }
+            if (thr->id == 0) {
+                printf("here 0\n");
+                enqueue_head(kernel_thr[i].ready_queue, (queue_t *) thr);
+                continue;
+            }
+            enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) thr);
 
-    // printf("WORK STEALING: first num %d, second num %d, first queue %p, second queue %p\n",
-    //     first_num_threads_steal, second_num_threads_steal, first_queue, second_queue);
+            __sync_fetch_and_add(&(kernel_thr[i].num_threads), -1);
+            __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), 1);
 
-    for (int i = 0; i < first_num_threads_steal; i++) {
-        //printf("7 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-        // if (i == 0) {
-        //     printf("Stealing from %d with NUM THREADS %d\n", first_native_thread, kernel_thr[first_native_thread].num_threads);
-        // }
-
-        thr = (thread_t *) dequeue_head(first_queue);
-        if (thr == NULL) {
+            printf("Native thread %d, GOOOOOT thread %d from %d\n", native_thread, thr->id, i);
+            // printf("and ...curr_num_threads 2 from native %d is %d\n", i, res);
             break;
         }
-        if (thr->id == 0) {
-            enqueue_head(kernel_thr[0].ready_queue, (queue_t *) thr);
-            continue;
-        }
-        enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) thr);
-        __sync_fetch_and_add(&(kernel_thr[first_native_thread].num_threads), -1);
-        __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), 1);
-
-        printf("Native thread %d, 1st Queue,GOOOOOT IT %d\n", native_thread, thr->id);
-    }
-
-    for (int i = 0; i < second_num_threads_steal; i++) {
-        //printf("8 WORK STEALING: > 2 native threads, from %d\n", native_thread);
-        // if (i == 0) {
-        //     printf("Stealing from %d with NUM THREADS %d\n", second_native_thread, kernel_thr[second_native_thread].num_threads);
-        // }
-
-        thr = (thread_t *) dequeue_head(second_queue);
-        if (thr == NULL) {
-            break;
-        }
-        if (thr->id == 0) {
-            enqueue_head(kernel_thr[0].ready_queue, (queue_t *) thr);
-            continue;
-        }
-        enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) thr);
-        __sync_fetch_and_add(&(kernel_thr[second_native_thread].num_threads), -1);
-        __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), 1);
-        printf("Native thread %d, 2nd Queue, GOOOOOT IT %d\n", native_thread, thr->id);
     }
 }
 
@@ -384,12 +347,12 @@ void scheduler(void *id) {
             work_stealing(native_thread);
             continue;
         }
+        running_thread->kernel_thread_id = native_thread;
         __sync_fetch_and_add(&(kernel_thr[running_thread->kernel_thread_id].num_threads), -1);
         // print_queue(ready_queue);
         printf("SCHEDULER: run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
         fflush(stdout);
 
-        running_thread->kernel_thread_id = native_thread;
         // running_thread->context.uc_link = kernel_thr[native_thread].context;
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
             handle_error("swapcontext");

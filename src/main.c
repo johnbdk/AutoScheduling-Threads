@@ -43,8 +43,14 @@ int main(int argc, char *argv[]) {
      */
 
     thread_lib_init(4);
-    thread_inc_dependency(6);
+    thread_inc_dependency(12);
 
+    thread_create(work, "t12", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t11", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t10", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t9", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t8", 0, THREAD_LIST(thread_self()));
+    thread_create(work, "t7", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t6", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t5", 0, THREAD_LIST(thread_self()));
     thread_create(work, "t4", 0, THREAD_LIST(thread_self()));

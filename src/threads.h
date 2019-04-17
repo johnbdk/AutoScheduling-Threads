@@ -41,6 +41,7 @@ typedef struct kernel_thread {
   ucontext_t *context;  // padding
   queue_t *ready_queue;
   volatile int num_threads;
+  lock_t lock_stealing;
 } kernel_thread_t;
 
 kernel_thread_t *kernel_thr;
