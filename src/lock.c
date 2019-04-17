@@ -5,14 +5,14 @@ void lock_init(lock_t *lock) {
 }
 
 void lock_acquire(lock_t *lock) {
-    int res;
+    int is_free;
 
     do {
         while (*lock) {
             _mm_pause();
         } 
-        res = __sync_bool_compare_and_swap(lock, 0, 1);
-    } while (!res);
+        is_free = __sync_bool_compare_and_swap(lock, 0, 1);
+    } while (!is_free);
     
 }
 

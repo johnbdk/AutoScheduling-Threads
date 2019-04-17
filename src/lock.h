@@ -1,7 +1,6 @@
 #ifndef LOCK_H
 #define LOCK_H
 
-#include <sched.h>
 #include <immintrin.h>
 
 typedef volatile int lock_t;
