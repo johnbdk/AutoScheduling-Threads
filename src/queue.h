@@ -22,4 +22,7 @@ queue_t *queue_create();
 queue_t *dequeue_head(queue_t *head);
 queue_t *dequeue_tail(queue_t *head);
 
+void enqueue_head_no_lock(queue_t *head, queue_t *element);
+queue_t *dequeue_head_no_lock(queue_t *head);
+
 #endif

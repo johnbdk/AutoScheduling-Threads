@@ -90,3 +90,29 @@ void print_queue(queue_t *head){
     printf("\n~~~~~\n");
     // lock_release(&(head->lock));
 }
+
+void enqueue_head_no_lock(queue_t *head, queue_t *element) {
+
+    if (head == NULL) {
+        return;
+    }
+    
+    element->next = head->next;
+    element->prev = head;
+    head->next->prev = element;
+    head->next = element;
+}
+
+queue_t *dequeue_head_no_lock(queue_t *head) {
+    queue_t *curr;
+
+    if ( (head->next == head) || (head == NULL) ) {
+        return NULL;
+    }
+
+    curr = head->next;
+    head->next = curr->next;
+    curr->next->prev = head;
+
+    return curr;
+}

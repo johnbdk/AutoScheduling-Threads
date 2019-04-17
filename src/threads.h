@@ -15,6 +15,7 @@
 #include <signal.h>
 #include "queue.h"
 #include <pthread.h>
+#include "lock.h"
 
 #define PAGE sysconf(_SC_PAGE_SIZE)
 #define STACK_SIZE sysconf(_SC_PAGE_SIZE)*8
@@ -38,9 +39,10 @@ typedef struct thr_descriptor {
 
 typedef struct kernel_thread {
   int pid;
-  // char *stack;
+  queue_t *ready_queue;
   pthread_t *thr;
   ucontext_t *context;  // padding
+  volatile int num_threads;
 } kernel_thread_t;
 
 #ifdef REUSE_STACK
@@ -53,13 +55,12 @@ typedef struct thr_descriptor_reuse {
 thread_reuse_t thr_reuse;
 #endif
 
-int num_native_threads;
 long int native_stack_size;
 volatile int terminate;
 volatile int no_threads;
+int no_native_threads;
 volatile int thread_next_id;
 thread_t main_thread;
-queue_t *ready_queue;
 ucontext_t uctx_scheduler;
 kernel_thread_t *kernel_thr;
 
@@ -68,6 +69,7 @@ int thread_yield();
 int thread_lib_exit();
 int thread_lib_init(int native_threads);
 int thread_inc_dependency(int num_deps);
+void work_stealing(int native_thread);
 void thread_exit();
 void scheduler(void *id);
 void free_thread(thread_t *thr);
