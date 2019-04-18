@@ -43,7 +43,6 @@ typedef struct kernel_thread {
   ucontext_t *context;  // padding
   queue_t *ready_queue;
   volatile int num_threads;
-  lock_t lock_stealing;
 } kernel_thread_t;
 
 kernel_thread_t *kernel_thr;
@@ -75,6 +74,7 @@ int thread_inc_dependency(int num_deps);
 void thread_exit();
 void scheduler(void *id);
 void free_thread(thread_t *thr);
+void print_queue(queue_t *queue);
 void work_stealing(int native_thread);
 void create_kernel_thread(kernel_thread_t *thr);
 void wrapper_func(void (body)(void *), void *arg);

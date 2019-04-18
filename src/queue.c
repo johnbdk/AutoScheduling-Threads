@@ -1,99 +1,85 @@
 #include "queue.h"
-#include "threads.h"
 
 queue_t *queue_create() {
-    queue_t *head;
+    queue_t *queue;
 
-    head = (queue_t *) malloc(sizeof(queue_t));
-    head->next = head;
-    head->prev = head;
-    lock_init(&(head->lock));
+    queue = (queue_t *) malloc(sizeof(queue_t));
+    queue->head = (node_t *) malloc(sizeof(node_t));
+    queue->head->next = queue->head;
+    queue->head->prev = queue->head;
+    lock_init(&(queue->lock));
 
-    return head;
+    return queue;
 }
 
-int queue_empty(queue_t *head) {
-    return (head->next == head) || (head == NULL);
+int queue_empty(queue_t *queue) {
+    return (queue->head->next == queue->head) || (queue->head == NULL);
 }
 
-void enqueue_head(queue_t *head, queue_t *element) {
+void enqueue_head(queue_t *queue, node_t *element) {
 
-	lock_acquire(&(head->lock));
-    if (head == NULL) {
+	lock_acquire(&(queue->lock));
+    if (queue->head == NULL) {
         // printf("hereee1\n");
-    	lock_release(&(head->lock));
+    	lock_release(&(queue->lock));
         return;
     }
     
-    element->next = head->next;
-    element->prev = head;
-    head->next->prev = element;
-    head->next = element;
-    lock_release(&(head->lock));
+    element->next = queue->head->next;
+    element->prev = queue->head;
+    queue->head->next->prev = element;
+    queue->head->next = element;
+    lock_release(&(queue->lock));
 }
 
-void enqueue_tail(queue_t *head, queue_t *element) {
+void enqueue_tail(queue_t *queue, node_t *element) {
 
-	lock_acquire(&(head->lock));
-    if (head == NULL) {
+	lock_acquire(&(queue->lock));
+    if (queue->head == NULL) {
         // printf("hereee2\n");
-		lock_release(&(head->lock));
+		lock_release(&(queue->lock));
         return;
     }
     
-    element->next = head;
-    element->prev = head->prev;
-    head->prev->next = element;
-    head->prev = element;
-    lock_release(&(head->lock));
+    element->next = queue->head;
+    element->prev = queue->head->prev;
+    queue->head->prev->next = element;
+    queue->head->prev = element;
+    lock_release(&(queue->lock));
 }
 
-queue_t *dequeue_tail(queue_t *head) {
-    queue_t *curr;
+node_t *dequeue_tail(queue_t *queue) {
+    node_t *curr;
 
-    lock_acquire(&(head->lock));
-    if ((head->next == head) || (head == NULL)) {
-		lock_release(&(head->lock));
+    lock_acquire(&(queue->lock));
+    if ((queue->head->next == queue->head) || (queue->head == NULL)) {
+		lock_release(&(queue->lock));
         // printf("hereee3\n");
         return NULL;
     }
 
-    curr = head->prev;
-    curr->prev->next = head;
-    head->prev = curr->prev;
-	lock_release(&(head->lock));
+    curr = queue->head->prev;
+    curr->prev->next = queue->head;
+    queue->head->prev = curr->prev;
+	lock_release(&(queue->lock));
 
     return curr;
 }
 
-queue_t *dequeue_head(queue_t *head) {
-    queue_t *curr;
+node_t *dequeue_head(queue_t *queue) {
+    node_t *curr;
 
-    lock_acquire(&(head->lock));
-    if ((head->next == head) || (head == NULL)) {
-    	lock_release(&(head->lock));
+    lock_acquire(&(queue->lock));
+    if ((queue->head->next == queue->head) || (queue->head == NULL)) {
+    	lock_release(&(queue->lock));
         // printf("hereee4\n");
         return NULL;
     }
 
-    curr = head->next;
-    head->next = curr->next;
-    curr->next->prev = head;
-    lock_release(&(head->lock));
+    curr = queue->head->next;
+    queue->head->next = curr->next;
+    curr->next->prev = queue->head;
+    lock_release(&(queue->lock));
 
     return curr;
-}
-
-void print_queue(queue_t *head){
-    queue_t *curr;
-    thread_t *thr;
-
-    lock_acquire(&(head->lock));
-    printf("~~~~~\n");
-    for (curr = head->next; curr != head; curr = curr->next) {
-        thr = (thread_t *)curr;
-        printf("%d ", thr->id);
-    }
-    printf("\n~~~~~\n");
-    lock_release(&(head->lock));
 }

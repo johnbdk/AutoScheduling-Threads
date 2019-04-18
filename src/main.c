@@ -14,9 +14,8 @@
 // }
 
 void work(void *arg) {
-    int id;
 
-    id = thread_getid();
+    thread_getid();
 
     // for (i=0; i<5; i++) {
     //     printf("%s id=%d: %d, %p\n", (char *)arg, id, i, &i);

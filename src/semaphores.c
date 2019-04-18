@@ -15,7 +15,7 @@ int sem_down(sem_t * s) {
     if (s->val == 0) {
         curr_thr = thread_self();
         curr_thr->blocked = 1;
-        enqueue_head(blocking_queue, (queue_t *)curr_thr);
+        enqueue_head(blocking_queue, (node_t *)curr_thr);
         thread_yield();
     }
     s->val--;
@@ -29,7 +29,7 @@ int sem_up(sem_t *s) {
     if (curr_thr != NULL) {
         if (curr_thr->deps == 0) {
             curr_thr->blocked = 0;
-            enqueue_head(kernel_thr[0].ready_queue, (queue_t *)curr_thr);
+            enqueue_head(kernel_thr[0].ready_queue, (node_t *)curr_thr);
         }
     }
     return 0;
