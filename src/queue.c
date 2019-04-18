@@ -16,10 +16,11 @@ int queue_empty(queue_t *head) {
     return (head->next == head) || (head == NULL);
 }
 
-void enqueue_head(queue_t *head, queue_t *element) {    // put in head (high priority)
+void enqueue_head(queue_t *head, queue_t *element) {
 
 	lock_acquire(&(head->lock));
     if (head == NULL) {
+        // printf("hereee1\n");
     	lock_release(&(head->lock));
         return;
     }
@@ -31,11 +32,11 @@ void enqueue_head(queue_t *head, queue_t *element) {    // put in head (high pri
     lock_release(&(head->lock));
 }
 
-void enqueue_tail(queue_t *head, queue_t *element) {    // put in tail (low priority)
+void enqueue_tail(queue_t *head, queue_t *element) {
 
 	lock_acquire(&(head->lock));
     if (head == NULL) {
-        // printf("hereee\n");
+        // printf("hereee2\n");
 		lock_release(&(head->lock));
         return;
     }
@@ -47,12 +48,13 @@ void enqueue_tail(queue_t *head, queue_t *element) {    // put in tail (low prio
     lock_release(&(head->lock));
 }
 
-queue_t *dequeue_tail(queue_t *head) {                  // take from tail (high priority)
+queue_t *dequeue_tail(queue_t *head) {
     queue_t *curr;
 
     lock_acquire(&(head->lock));
-    if ( (head->next == head) || (head == NULL) ) {
+    if ((head->next == head) || (head == NULL)) {
 		lock_release(&(head->lock));
+        // printf("hereee3\n");
         return NULL;
     }
 
@@ -64,12 +66,13 @@ queue_t *dequeue_tail(queue_t *head) {                  // take from tail (high 
     return curr;
 }
 
-queue_t *dequeue_head(queue_t *head) {                  // take from head (low priority)
+queue_t *dequeue_head(queue_t *head) {
     queue_t *curr;
 
     lock_acquire(&(head->lock));
-    if ( (head->next == head) || (head == NULL) ) {
-    	lock_release(&(head->lock));	
+    if ((head->next == head) || (head == NULL)) {
+    	lock_release(&(head->lock));
+        // printf("hereee4\n");
         return NULL;
     }
 

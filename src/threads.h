@@ -10,9 +10,10 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdarg.h>
-#include <sys/resource.h>
 #include <sched.h>
 #include <signal.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
 #include "queue.h"
 
 #define PAGE sysconf(_SC_PAGE_SIZE)
@@ -37,6 +38,7 @@ typedef struct thr_descriptor {
 
 typedef struct kernel_thread {
   int id;
+  pid_t pid;
   char *stack;
   ucontext_t *context;  // padding
   queue_t *ready_queue;

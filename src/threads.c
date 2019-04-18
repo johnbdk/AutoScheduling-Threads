@@ -5,7 +5,7 @@ void create_kernel_thread(kernel_thread_t *kernel_thr) {
     kernel_thr->stack = (char *) malloc(STACK_SIZE*sizeof(char));
     printf("@@@ %d\n",kernel_thr->id);
 	fflush(stdout);
-    clone(&wrapper_scheduler, kernel_thr->stack + STACK_SIZE, CLONE_VM, (void *)&kernel_thr->id);       //CLONE_VM
+    kernel_thr->pid = clone(&wrapper_scheduler, kernel_thr->stack + STACK_SIZE, CLONE_VM | SIGCHLD, (void *)&kernel_thr->id);       //CLONE_VM
 }
 
 int wrapper_scheduler(void *id) {
@@ -33,7 +33,8 @@ int thread_lib_init(int native_threads) {
     thr_reuse.max_capacity = 10000;
 #endif
 
-    main_thread.id = thread_next_id++;
+    main_thread.id = thread_next_id;
+    thread_next_id++;
     main_thread.deps = 0;
     main_thread.alive = 1;
     main_thread.blocked = 0;
@@ -54,7 +55,8 @@ int thread_lib_init(int native_threads) {
     main_thread.context.uc_stack.ss_sp = native_thread_stack;
 
     kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));    // REMEMBER TO FREE
-    kernel_thr[0].id = 0;                                                              // SAVE MAIN ID, i.e 0 id
+    kernel_thr[0].id = 0;                                                               // SAVE MAIN ID, i.e 0 id
+    kernel_thr[0].pid = getpid();
     kernel_thr[0].num_threads = 1;
     kernel_thr[0].stack = native_thread_stack;                                          // FOR COMPLECITY
     kernel_thr[0].context = &uctx_scheduler;                                            // FOR COMPLECITY 
@@ -238,8 +240,10 @@ void thread_exit() {
 }
 
 int thread_lib_exit() {
-    
-    while (no_threads);
+    int status;
+
+    terminate = 1;
+    printf("LIB EXITTTTT %d, %d and %d\n", thread_self()->kernel_thread_id, thread_self()->id, no_threads);
 
 #ifdef REUSE_STACK
     thread_t *thr;
@@ -266,7 +270,10 @@ int thread_lib_exit() {
     // }
     // free(kernel_thr); 
 
-    terminate = 1;
+    for (int i = 1; i < no_native_threads; i++) {
+        pid_t pid = waitpid(kernel_thr[i].pid, &status, 0);
+        printf("Process %d is terminating..\n", pid);
+    }
     return 0;
 }
 
@@ -298,7 +305,7 @@ void work_stealing(int native_thread) {
         return;
     }
 
-    for (k = 0, i = ((native_thread + 1) % no_native_threads); k < no_native_threads; k++, i = ((i + 1) % no_native_threads)) {
+    for (k = 0, i = ((native_thread + 1) % no_native_threads); k < (no_native_threads - 1); k++, i = ((i + 1) % no_native_threads)) {
         lock_acquire(&(kernel_thr[i].lock_stealing));
         curr_num_threads = kernel_thr[i].num_threads;
         lock_release(&(kernel_thr[i].lock_stealing));
@@ -306,16 +313,15 @@ void work_stealing(int native_thread) {
         if (curr_num_threads > 2) {
             // printf("curr_num_threads 2 from native %d is %d\n", i, curr_num_threads);
             thr = (thread_t *) dequeue_head(kernel_thr[i].ready_queue);
-            // printf("thr->id is %d\n", thr->id);
             if (thr == NULL) {
                 printf("here null\n");
                 fflush(stdout);
                 continue;
             }
             if (thr->id == 0) {
-                printf("here 0\n");
+                printf("HEREEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE 0\n");
                 fflush(stdout);
-                enqueue_head(kernel_thr[i].ready_queue, (queue_t *) thr);
+                enqueue_head(kernel_thr[0].ready_queue, (queue_t *) thr);
                 continue;
             }
             enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) thr);
@@ -323,8 +329,8 @@ void work_stealing(int native_thread) {
             __sync_fetch_and_add(&(kernel_thr[i].num_threads), -1);
             __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), 1);
 
-            printf("Native thread %d, GOOOOOT thread %d from %d\n", native_thread, thr->id, i);
-            fflush(stdout);
+            // printf("Native thread %d, GOOOOOT thread %d from %d\n", native_thread, thr->id, i);
+            // fflush(stdout);
             // printf("and ...curr_num_threads 2 from native %d is %d\n", i, res);
             break;
         }
@@ -335,6 +341,7 @@ void scheduler(void *id) {
     thread_t *running_thread;
     int native_thread = *((int *)id);
     int temp_deps;
+    int terminate_local;
 
     while(!terminate) {
         running_thread = (thread_t *) dequeue_tail(kernel_thr[native_thread].ready_queue);
@@ -343,9 +350,9 @@ void scheduler(void *id) {
             continue;
         }
         running_thread->kernel_thread_id = native_thread;
-        __sync_fetch_and_add(&(kernel_thr[running_thread->kernel_thread_id].num_threads), -1);
+        __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), -1);
         // print_queue(ready_queue);
-        printf("run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
+        printf("run thr %d, kernel thr %d\n", running_thread->id, native_thread);
         fflush(stdout);
 
         // running_thread->context.uc_link = kernel_thr[native_thread].context;
@@ -353,7 +360,7 @@ void scheduler(void *id) {
             handle_error("swapcontext");
         }
 
-        printf("return of thread thread %d on kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
+        printf("return thr %d, kernel thr %d\n", running_thread->id, native_thread);
         fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);

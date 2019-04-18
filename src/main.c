@@ -65,9 +65,9 @@ int main(int argc, char *argv[]) {
     // sleep(5);
     thread_exit();
 
-    printf("OK\n");
-
     thread_lib_exit();
+    
+    printf("OK\n");
 
     return 0;
 }
