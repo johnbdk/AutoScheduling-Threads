@@ -247,7 +247,7 @@ int thread_lib_exit() {
     fflush(stdout);
     /* If native thread is 0, wait for the children processes to finish */
     if (!thread_self()->kernel_thread_id) {
-        printf("Waiting from lib exit..\n");
+        printf("Waiting from lib exit..%d\n", main_thread.id);
         fflush(stdout);
         for (int i = 1; i < no_native_threads; i++) {
             pid_t pid = waitpid(kernel_thr[i].pid, &status, 0);
@@ -260,21 +260,19 @@ int thread_lib_exit() {
 
 void free_thread(thread_t *thr) {
 
-#ifdef REUSE_STACK
     if (thr->id) {
+#ifdef REUSE_STACK
         enqueue_tail(thr_reuse.descriptors, (node_t *) thr);
         // thr_reuse.capacity++;
         __sync_fetch_and_add(&(thr_reuse.capacity), 1);
-    }
 #else
-    if (thr->id) {
         if (thr->num_successors > 0) {
             // free(thr->successors);
         }
         // free(thr->stack);
         // free(thr);
-    }
 #endif
+    }
 }
 
 thread_t *work_stealing(int native_thread) {
@@ -287,10 +285,8 @@ thread_t *work_stealing(int native_thread) {
             if (thr == NULL) {
                 continue;
             }
-            else {
-                __sync_fetch_and_add(&(kernel_thr[i].num_threads), -1);
-                return thr;
-            }
+            __sync_fetch_and_add(&(kernel_thr[i].num_threads), -1);
+            return thr;
         }
     }
     return NULL;
@@ -302,25 +298,44 @@ void scheduler(void *id) {
     int temp_deps, status;
 
     while (!terminate) {
+        printf("hereee1:%d:%d\n", native_thread, terminate);
+        fflush(stdout);
         running_thread = (thread_t *) dequeue_tail(kernel_thr[native_thread].ready_queue);
+        printf("hereee2:%d:%d\n", native_thread, terminate);
+        fflush(stdout);
         if (running_thread == NULL) {
+            printf("hereee3:%d:%d\n", native_thread, terminate);
+            fflush(stdout);
             running_thread  = work_stealing(native_thread);
+            printf("hereee4:%d:%d\n", native_thread, terminate);
+            fflush(stdout);
             if (running_thread == NULL) {
+                printf("hereee5:%d:%d\n", native_thread, terminate);
+                fflush(stdout);
                 continue;
             }
+            printf("hereee6:%d:%d\n", native_thread, terminate);
+            fflush(stdout);
         }
         else {
+            printf("hereee7:%d:%d\n", native_thread, terminate);
+            fflush(stdout);
             __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), -1);
+            printf("hereee8:%d:%d\n", native_thread, terminate);
+            fflush(stdout);
         }
+        printf("hereee9:%d:%d\n", native_thread, terminate);
+        fflush(stdout);
+
         running_thread->kernel_thread_id = native_thread;
 
-        printf("Run thr %d, kernel thr %d\n", running_thread->id, native_thread);
+        printf("Run thr %d:%d, kernel thr %d\n", running_thread->id, main_thread.deps, native_thread);
         fflush(stdout);
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
             handle_error("swapcontext");
         }
 
-        printf("Return thr %d, kernel thr %d\n", running_thread->id, native_thread);
+        printf("Return thr %d:%d, kernel thr %d\n", running_thread->id, main_thread.deps, native_thread);
         fflush(stdout);
         /* Thread exit.. */
         if (running_thread->alive == 0) {
@@ -337,13 +352,13 @@ void scheduler(void *id) {
             }
             if (temp_deps == 1 && !running_thread->blocked) {
                 enqueue_head(kernel_thr[native_thread].ready_queue, (node_t *) running_thread);
-                __sync_fetch_and_add(&(kernel_thr[running_thread->kernel_thread_id].num_threads), 1);
+                __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), 1);
             }
         }
     }
     /* If native thread is 0, wait for the children processes to finish */
     if (!native_thread) {
-        printf("Waiting from lib scheduler..\n");
+        printf("Waiting from lib scheduler..%d\n", main_thread.deps);
         fflush(stdout);
         for (int i = 1; i < no_native_threads; i++) {
             pid_t pid = waitpid(kernel_thr[i].pid, &status, 0);

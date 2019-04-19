@@ -32,7 +32,7 @@ typedef struct thr_descriptor {
   int alloc_successors;
   int alive;
   int blocked;
-  int kernel_thread_id;
+  volatile int kernel_thread_id;
   struct thr_descriptor **successors;
 } thread_t;
 
