@@ -13,7 +13,6 @@ int thread_lib_init(int native_threads) {
     static ucontext_t uctx_main;
 
     /* Variables for library termination */
-    no_threads = 1;
     terminate = 0;
     no_native_threads = native_threads;
 
@@ -61,7 +60,7 @@ int thread_lib_init(int native_threads) {
     makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].pid);
 
     // enqueue_head(ready_queue, (queue_t *) &main_thread);
-    enqueue_head(kernel_thr[0].ready_queue, (queue_t *) &main_thread);
+    enqueue_head(kernel_thr[0].ready_queue, (node_t *) &main_thread);
     if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
         handle_error("swapcontext");
     }
@@ -110,7 +109,6 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thr->next = NULL;
     thr->prev = NULL;
 
-    __sync_fetch_and_add(&no_threads, 1);
     thr->id = __sync_fetch_and_add(&thread_next_id, 1);
     // printf("THREAD CREATE %d\n", thr->id);
     thr->deps = deps;
@@ -152,7 +150,7 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
 
     if (!thr->deps) {
         // enqueue_tail(ready_queue, (queue_t *) thr);
-        enqueue_tail(kernel_thr[thr->kernel_thread_id].ready_queue, (queue_t *) thr);
+        enqueue_tail(kernel_thr[thr->kernel_thread_id].ready_queue, (node_t *) thr);
         __sync_fetch_and_add(&(kernel_thr[thr->kernel_thread_id].num_threads), 1);
     }
     return thr;
@@ -218,7 +216,7 @@ void thread_exit() {
                 // // printf("THREAD EXIT: thread %d successor %d has 0 deps, adding him in the queue\n", me->id, me->successors[i]->id);
                 //flush(stdout);
                 // enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
-                enqueue_tail(kernel_thr[me->kernel_thread_id].ready_queue, (queue_t *) me->successors[i]);
+                enqueue_tail(kernel_thr[me->kernel_thread_id].ready_queue, (node_t *) me->successors[i]);
                 __sync_fetch_and_add(&(kernel_thr[me->kernel_thread_id].num_threads), 1);
             }
         }
@@ -258,6 +256,9 @@ int thread_lib_exit() {
 
     printf("THREAD LIB EXIT END\n");
 	fflush(stdout);
+
+    terminate = 1;
+
     return 0;
 }
 
@@ -265,7 +266,7 @@ void free_thread(thread_t *thr) {
 
 #ifdef REUSE_STACK
     if (thr->id) {
-        enqueue_tail(thr_reuse.descriptors, (queue_t *) thr);
+        enqueue_tail(thr_reuse.descriptors, (node_t *) thr);
         // thr_reuse.capacity++;
         __sync_fetch_and_add(&(thr_reuse.capacity), 1);
     }
@@ -284,7 +285,6 @@ void scheduler(void *id) {
     thread_t *running_thread;
     int native_thread = *((int *)id);
     int temp_deps;
-    int terminate_local;
     
     while (!terminate) {
         running_thread = (thread_t *) dequeue_tail(kernel_thr[native_thread].ready_queue);
@@ -306,11 +306,6 @@ void scheduler(void *id) {
         // fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);
-            terminate_local = __sync_fetch_and_add(&no_threads, -1);
-            if (terminate_local == 1) {
-                terminate = terminate_local;
-                break;
-            }
         }
         else {
             if (running_thread->self_inced) {
@@ -321,7 +316,7 @@ void scheduler(void *id) {
                 temp_deps = 1;
             }
             if (temp_deps == 1 && !running_thread->blocked) {
-                enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) running_thread);
+                enqueue_head(kernel_thr[native_thread].ready_queue, (node_t *) running_thread);
                 __sync_fetch_and_add(&(kernel_thr[running_thread->kernel_thread_id].num_threads), 1);
             }
         }
@@ -397,7 +392,7 @@ void work_stealing(int native_thread) {
                     break;
                 }
 
-                enqueue_head(kernel_thr[native_thread].ready_queue, (queue_t *) thr);
+                enqueue_head(kernel_thr[native_thread].ready_queue, (node_t *) thr);
 
                 // printf("Native thread %d, 1st Queue,GOOOOOT IT %d\n", native_thread, thr->id);
             }

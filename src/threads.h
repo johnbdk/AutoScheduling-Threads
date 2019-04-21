@@ -57,7 +57,6 @@ thread_reuse_t thr_reuse;
 
 long int native_stack_size;
 volatile int terminate;
-volatile int no_threads;
 int no_native_threads;
 volatile int thread_next_id;
 thread_t main_thread;
