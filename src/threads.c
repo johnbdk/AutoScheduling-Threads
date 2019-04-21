@@ -376,7 +376,7 @@ void work_stealing(int native_thread) {
 
     victim_thread = (native_thread + 1) % no_native_threads;
     do{
-        victim_num_threads_steal = 1;   //kernel_thr[victim_thread].num_threads * stealing;
+        victim_num_threads_steal = kernel_thr[victim_thread].num_threads * stealing;
         victim_queue = kernel_thr[victim_thread].ready_queue;
         
 
@@ -394,7 +394,6 @@ void work_stealing(int native_thread) {
 
                 enqueue_head(kernel_thr[native_thread].ready_queue, (node_t *) thr);
 
-                // printf("Native thread %d, 1st Queue,GOOOOOT IT %d\n", native_thread, thr->id);
             }
             __sync_fetch_and_add(&(kernel_thr[victim_thread].num_threads), -i);
             __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), i);

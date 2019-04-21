@@ -2,8 +2,8 @@
 #include "threads.h"
 #include "lock.h"
 
-#define SIZE    128
-#define CHUNK   16
+#define SIZE    512
+#define CHUNK   64
 double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 
 union args {
