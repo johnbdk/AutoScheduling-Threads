@@ -23,7 +23,6 @@ int thread_lib_init(int native_threads) {
 #endif
 
     thread_next_id = 0;
-    // ready_queue = queue_create();
 
     main_thread.id = thread_next_id++;
     main_thread.deps = 0;
@@ -46,18 +45,16 @@ int thread_lib_init(int native_threads) {
     main_thread.context.uc_stack.ss_sp = native_thread_stack;
 
     kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));    // REMEMBER TO FREE
-    kernel_thr[0].pid = 0;                                                              // SAVE MAIN ID, i.e 0 id
-    kernel_thr[0].context = &uctx_scheduler;                                            // FOR COMPLECITY 
+    kernel_thr[0].id = 0;                                                              // SAVE MAIN ID, i.e 0 id
+    kernel_thr[0].context = (ucontext_t *) malloc(sizeof(ucontext_t));
     kernel_thr[0].ready_queue = queue_create();
 
-
-    if (getcontext(&uctx_scheduler) == -1) {
+    if (getcontext(kernel_thr[0].context) == -1) {
         handle_error("getcontext");
     }
-    char *scheduler_stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);     // ALLOCATE ALIGNED MEMORY 8*MEM_SIZE
-    uctx_scheduler.uc_stack.ss_sp = scheduler_stack;                            // ALL THE OTHER BYTES
-    uctx_scheduler.uc_stack.ss_size = STACK_SIZE;
-    makecontext(&(uctx_scheduler), (void *)scheduler, 1, (void *) &kernel_thr[0].pid);
+    kernel_thr[0].context->uc_stack.ss_sp = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);
+    kernel_thr[0].context->uc_stack.ss_size = STACK_SIZE;
+    makecontext(kernel_thr[0].context, (void *)scheduler, 1, (void *) &(kernel_thr[0].id));
 
     // enqueue_head(ready_queue, (queue_t *) &main_thread);
     enqueue_head(kernel_thr[0].ready_queue, (node_t *) &main_thread);
@@ -67,10 +64,10 @@ int thread_lib_init(int native_threads) {
 
     for (int i = 1; i < native_threads; i++) {
         kernel_thr[i].ready_queue = queue_create();
-        kernel_thr[i].pid = i;
+        kernel_thr[i].id = i;
         kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
         kernel_thr[i].thr = (pthread_t *) malloc(sizeof(pthread_t));        // REMEMBER TO FREE
-        pthread_create(kernel_thr[i].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i].pid);
+        pthread_create(kernel_thr[i].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i].id);
     }
     pthread_setconcurrency(native_threads);
     return 0;
@@ -252,7 +249,7 @@ int thread_lib_exit() {
 #endif
 
     free(main_thread.successors);
-    free(uctx_scheduler.uc_stack.ss_sp);
+    // free(uctx_scheduler.uc_stack.ss_sp);
 
     printf("THREAD LIB EXIT END\n");
 	fflush(stdout);

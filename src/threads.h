@@ -19,6 +19,7 @@
 
 #define PAGE sysconf(_SC_PAGE_SIZE)
 #define STACK_SIZE sysconf(_SC_PAGE_SIZE)*8
+#define CACHE_LINE sysconf(_SC_LEVEL1_DCACHE_LINESIZE)
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
@@ -28,7 +29,7 @@ typedef struct thr_descriptor {
   char *stack;
   ucontext_t context;
   volatile int deps;
-  int self_inced;       //
+  int self_inced;
   int num_successors;
   int alloc_successors;
   int alive;
@@ -37,13 +38,22 @@ typedef struct thr_descriptor {
   struct thr_descriptor **successors;
 } thread_t;
 
+thread_t main_thread;
+
 typedef struct kernel_thread {
-  int pid;
-  queue_t *ready_queue;
-  pthread_t *thr;
-  ucontext_t *context;  // padding
+  int id;
   volatile int num_threads;
+  pthread_t *thr;
+  ucontext_t *context;
+  queue_t *ready_queue;
+  /* sizeof(int) = 4, so we have 8 bytes from two integers
+   * Also, we have 3 pointers, so 3*8 = 24 bytes
+   * Finally, cache line (getconf LEVEL1_DCACHE_LINESIZE) = 64 bytes, so 64-8-24 is the padding
+   */
+  char padding[32];
 } kernel_thread_t;
+
+kernel_thread_t *kernel_thr;
 
 #ifdef REUSE_STACK
 typedef struct thr_descriptor_reuse {
@@ -59,20 +69,17 @@ long int native_stack_size;
 volatile int terminate;
 int no_native_threads;
 volatile int thread_next_id;
-thread_t main_thread;
-ucontext_t uctx_scheduler;
-kernel_thread_t *kernel_thr;
 
 int thread_getid();
 int thread_yield();
 int thread_lib_exit();
 int thread_lib_init(int native_threads);
 int thread_inc_dependency(int num_deps);
-void work_stealing(int native_thread);
 void thread_exit();
 void scheduler(void *id);
 void free_thread(thread_t *thr);
 void *wrapper_scheduler(void *id);
+void work_stealing(int native_thread);
 void create_kernel_thread(kernel_thread_t *thr);
 void wrapper_func(void (body)(void *), void *arg);
 thread_t *thread_self();

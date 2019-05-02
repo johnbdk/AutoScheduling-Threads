@@ -4,10 +4,12 @@ CC = gcc
 # Compiler flags
 CFLAGS = -g -Wall
 
-# Debug flags
 # Variable REUSE_STACK to reuse thread_descriptors
 DBGFLAGS = -DREUSE_STACK
+
+# Pthread library flag
 LFLAGS = -lpthread
+
 # Compile with -O3 optimization
 OPTFLAGS = -O3
 

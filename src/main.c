@@ -11,8 +11,6 @@ union args {
     int indices[2];
 };
 
-lock_t lock;
-
 void worker_func(void *arg) {
     unsigned long row = ((union args)arg).indices[0];
     unsigned long col_start = ((union args)arg).indices[1];
@@ -59,6 +57,8 @@ void thread_func(void *arg) {
 int main (int argc, char *argv[]) {
     thread_t *myself;
     unsigned long i,j;
+
+    printf("Started\n");
 
     init_arrays();
 
