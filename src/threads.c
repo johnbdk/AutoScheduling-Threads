@@ -8,7 +8,7 @@ void create_kernel_thread(kernel_thread_t *kernel_thr) {
 
 int wrapper_scheduler(void *id) {
     scheduler(id);
-    return 1;
+    exit(1);
 }
 
 int thread_lib_init(int native_threads) {
@@ -207,7 +207,8 @@ void thread_exit() {
         }
     }
     me->alive = 0;
-    if (me->id) {
+    /* Main thead (id = 0) needs to execute thread_lib_exit function, dont return to scheduler */
+    if (me->id > 0) {
         if (swapcontext(&(me->context), kernel_thr[me->kernel_thread_id].context) == -1) {
             handle_error("swapcontext");
         }
@@ -251,7 +252,7 @@ int thread_lib_exit() {
         fflush(stdout);
         for (int i = 1; i < no_native_threads; i++) {
             pid_t pid = waitpid(kernel_thr[i].pid, &status, 0);
-            printf("Process %d is terminating..%d\n", pid, i);
+            printf("Process %d is terminating..status %d\n", pid, status);
             fflush(stdout);
         }
     }
@@ -298,35 +299,16 @@ void scheduler(void *id) {
     int temp_deps, status;
 
     while (!terminate) {
-        printf("hereee1:%d:%d\n", native_thread, terminate);
-        fflush(stdout);
         running_thread = (thread_t *) dequeue_tail(kernel_thr[native_thread].ready_queue);
-        printf("hereee2:%d:%d\n", native_thread, terminate);
-        fflush(stdout);
         if (running_thread == NULL) {
-            printf("hereee3:%d:%d\n", native_thread, terminate);
-            fflush(stdout);
             running_thread  = work_stealing(native_thread);
-            printf("hereee4:%d:%d\n", native_thread, terminate);
-            fflush(stdout);
             if (running_thread == NULL) {
-                printf("hereee5:%d:%d\n", native_thread, terminate);
-                fflush(stdout);
                 continue;
             }
-            printf("hereee6:%d:%d\n", native_thread, terminate);
-            fflush(stdout);
         }
         else {
-            printf("hereee7:%d:%d\n", native_thread, terminate);
-            fflush(stdout);
             __sync_fetch_and_add(&(kernel_thr[native_thread].num_threads), -1);
-            printf("hereee8:%d:%d\n", native_thread, terminate);
-            fflush(stdout);
         }
-        printf("hereee9:%d:%d\n", native_thread, terminate);
-        fflush(stdout);
-
         running_thread->kernel_thread_id = native_thread;
 
         printf("Run thr %d:%d, kernel thr %d\n", running_thread->id, main_thread.deps, native_thread);
@@ -362,7 +344,7 @@ void scheduler(void *id) {
         fflush(stdout);
         for (int i = 1; i < no_native_threads; i++) {
             pid_t pid = waitpid(kernel_thr[i].pid, &status, 0);
-            printf("Process %d is terminating..%d\n", pid, i);
+            printf("Process %d is terminating..with status %d\n", pid, status);
             fflush(stdout);
         }
     }

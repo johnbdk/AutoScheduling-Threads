@@ -22,7 +22,8 @@
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 typedef struct thr_descriptor {
-  struct thr_descriptor *next, *prev;
+  struct thr_descriptor *next;
+  struct thr_descriptor *prev;
   int id;
   char *stack;
   ucontext_t context;
