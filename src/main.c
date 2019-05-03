@@ -66,7 +66,7 @@ int main (int argc, char *argv[]) {
     myself = thread_self();
     thread_inc_dependency(SIZE);
 
-    for (i = 0; i < SIZE; i++){
+    for (i = 0; i < SIZE; i++) {
         thread_create(thread_func, (void *)i, 0, THREAD_LIST(myself));
     }
 

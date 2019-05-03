@@ -42,15 +42,14 @@ thread_t main_thread;
 
 typedef struct kernel_thread {
   int id;
-  volatile int num_threads;
   pthread_t *thr;
   ucontext_t *context;
   queue_t *ready_queue;
-  /* sizeof(int) = 4, so we have 8 bytes from two integers
+  /* sizeof(int) = 4, so we have 4 bytes from three integers
    * Also, we have 3 pointers, so 3*8 = 24 bytes
-   * Finally, cache line (getconf LEVEL1_DCACHE_LINESIZE) = 64 bytes, so 64-8-24 is the padding
+   * Finally, cache line (getconf LEVEL1_DCACHE_LINESIZE) = 64 bytes, so 64-4-24 is the padding
    */
-  char padding[32];
+  char padding[36];
 } kernel_thread_t;
 
 kernel_thread_t *kernel_thr;
@@ -67,7 +66,7 @@ thread_reuse_t thr_reuse;
 
 long int native_stack_size;
 volatile int terminate;
-int no_native_threads;
+volatile int no_native_threads;
 volatile int thread_next_id;
 
 int thread_getid();
