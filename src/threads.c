@@ -15,20 +15,20 @@ int thread_lib_init(int native_threads) {
     struct rlimit current_limits;
     long int mask;
     char *native_thread_stack;
-    static ucontext_t uctx_main;
 
     /* Variables for library termination */
     terminate = 0;
     no_native_threads = native_threads;
 
 #ifdef REUSE_STACK
+    /* Initialize reuse stack queue */
     thr_reuse.descriptors = queue_create();
     thr_reuse.capacity = 0;
     thr_reuse.max_capacity = 10000;
 #endif
 
     thread_next_id = 0;
-
+    /* Initialize main thread */
     main_thread.id = thread_next_id++;
     main_thread.deps = 0;
     main_thread.alive = 1;
@@ -39,21 +39,22 @@ int thread_lib_init(int native_threads) {
     main_thread.stack = NULL;
     main_thread.successors = (thread_t **) malloc(sizeof(thread_t *));
     main_thread.successors[0] = NULL;
-    main_thread.context = uctx_main;
     main_thread.kernel_thread_id = 0;
 
+    /* Find the address of the main thread stack */
     getrlimit(RLIMIT_STACK, &current_limits);
     native_stack_size = current_limits.rlim_cur;
-    
     mask = ~(native_stack_size - 1);
-    native_thread_stack = (char *) (mask & ((long int)&mask));  // get address of a variable and find begining of stack
-    main_thread.context.uc_stack.ss_sp = native_thread_stack;
+    native_thread_stack = (char *) (mask & ((long int)&mask));  // Get address of a variable and find the begining of stack
+    main_thread.context.uc_stack.ss_sp = native_thread_stack;   // Save the address inside the main's context, so we can use it later 
 
-    kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));    // REMEMBER TO FREE
-    kernel_thr[0].id = 0;                                                              // SAVE MAIN ID, i.e 0 id
+    /* Initialize kernel thread 0 (aka main thread) */
+    kernel_thr = (kernel_thread_t *) malloc(native_threads*sizeof(kernel_thread_t));
+    kernel_thr[0].id = 0;   // Save main kernel thread id, i.e 0 id
     kernel_thr[0].context = (ucontext_t *) malloc(sizeof(ucontext_t));
     kernel_thr[0].ready_queue = queue_create();
 
+    /* Construct the context of kernel thread 0 (i.e target function: scheduler) and save the begining of the address of that stack */
     if (getcontext(kernel_thr[0].context) == -1) {
         handle_error("getcontext");
     }
@@ -61,17 +62,18 @@ int thread_lib_init(int native_threads) {
     kernel_thr[0].context->uc_stack.ss_size = STACK_SIZE;
     makecontext(kernel_thr[0].context, (void *)scheduler, 1, (void *) &(kernel_thr[0].id));
 
-    // enqueue_head(ready_queue, (queue_t *) &main_thread);
+    /* Put main thread into the queue of kernel thread 0 and swap to the scheduler 0 (of kernel thread 0) */ 
     enqueue_head(kernel_thr[0].ready_queue, (node_t *) &main_thread);
-    if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) { // SWAP TO THE THREAD FROM THE QUEUE
+    if (swapcontext(&(main_thread.context), kernel_thr[0].context) == -1) {
         handle_error("swapcontext");
     }
 
+    /* Initialize the rest of the kernel threads */
     for (int i = 1; i < native_threads; i++) {
         kernel_thr[i].ready_queue = queue_create();
         kernel_thr[i].id = i;
-        kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));  // REMEMBER TO FREE
-        kernel_thr[i].thr = (pthread_t *) malloc(sizeof(pthread_t));        // REMEMBER TO FREE
+        kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));
+        kernel_thr[i].thr = (pthread_t *) malloc(sizeof(pthread_t));
         pthread_create(kernel_thr[i].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i].id);
     }
     pthread_setconcurrency(native_threads);
@@ -87,7 +89,6 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     thr = (thread_t *) dequeue_tail(thr_reuse.descriptors);
     if (thr != NULL) {
     	empty_descriptors = 0;
-        // thr_reuse.capacity--; 
         __sync_fetch_and_add(&(thr_reuse.capacity), -1);
     }
     else {
@@ -96,10 +97,10 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     if (getcontext(&(thr->context)) == -1) {
         handle_error("getcontext");
     }
-    thr->stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);    // ALLOCATE ALIGNED MEMORY 8*MEM_SIZE
+    thr->stack = (char *) aligned_alloc(STACK_SIZE, STACK_SIZE);    // Allocate alligned memory 8*MEM_SIZE
     thr->successors = NULL;
-    memcpy(thr->stack, &thr, sizeof(thread_t *));                   // FIRST 16 BYTES ARE FOR THE POINTER POINTING TO THE DESCRIPTOR
-    (thr->context).uc_stack.ss_sp = thr->stack + 16;                // ALL THE OTHER BYTES
+    memcpy(thr->stack, &thr, sizeof(thread_t *));                   // First 16 bytes are for the pointer pointing to the descriptor
+    (thr->context).uc_stack.ss_sp = thr->stack + 16;                // All the other bytes
     (thr->context).uc_stack.ss_size = STACK_SIZE - 16;
     (thr->context).uc_link = NULL;
     thr->alloc_successors = 0;
@@ -151,7 +152,6 @@ thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *succ
     }
 
     if (!thr->deps) {
-        // enqueue_tail(ready_queue, (queue_t *) thr);
         enqueue_tail(kernel_thr[thr->kernel_thread_id].ready_queue, (node_t *) thr);
     }
     return thr;
@@ -216,7 +216,6 @@ void thread_exit() {
             if (curr_deps == 1 && !me->successors[i]->blocked) {
                 // // printf("THREAD EXIT: thread %d successor %d has 0 deps, adding him in the queue\n", me->id, me->successors[i]->id);
                 //flush(stdout);
-                // enqueue_tail(ready_queue, (queue_t *) me->successors[i]);
                 enqueue_tail(kernel_thr[me->kernel_thread_id].ready_queue, (node_t *) me->successors[i]);
             }
         }
@@ -241,7 +240,6 @@ int thread_lib_exit() {
     thr = (thread_t *) dequeue_head(thr_reuse.descriptors);
     while (thr != NULL) {
         (thr_reuse.capacity)--;
-        // __sync_fetch_and_add(&(thr_reuse.capacity), -1);
         if (thr->num_successors > 0) {
             free(thr->successors);
         }
@@ -267,7 +265,6 @@ void free_thread(thread_t *thr) {
 #ifdef REUSE_STACK
     if (thr->id) {
         enqueue_tail(thr_reuse.descriptors, (node_t *) thr);
-        // thr_reuse.capacity++;
         __sync_fetch_and_add(&(thr_reuse.capacity), 1);
     }
 #else

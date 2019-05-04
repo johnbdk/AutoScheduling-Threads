@@ -45,7 +45,7 @@ typedef struct kernel_thread {
   pthread_t *thr;
   ucontext_t *context;
   queue_t *ready_queue;
-  /* sizeof(int) = 4, so we have 4 bytes from three integers
+  /* sizeof(int) = 4, so we have 4 bytes from one integer
    * Also, we have 3 pointers, so 3*8 = 24 bytes
    * Finally, cache line (getconf LEVEL1_DCACHE_LINESIZE) = 64 bytes, so 64-4-24 is the padding
    */

@@ -24,8 +24,8 @@ int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio);
 void print_queue(queue_t *head);
 void enqueue_head(queue_t *head, node_t *element);
 void enqueue_tail(queue_t *head, node_t *element);
-queue_t *queue_create();
 node_t *dequeue_head(queue_t *head);
 node_t *dequeue_tail(queue_t *head);
+queue_t *queue_create();
 
 #endif
