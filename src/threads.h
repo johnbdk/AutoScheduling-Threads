@@ -40,16 +40,16 @@ typedef struct thr_descriptor {
 
 thread_t main_thread;
 
-typedef struct kernel_thread {
+typedef struct kernel_thread_variables {
   int id;
   pthread_t *thr;
   ucontext_t *context;
   queue_t *ready_queue;
-  /* sizeof(int) = 4, so we have 4 bytes from one integer
-   * Also, we have 3 pointers, so 3*8 = 24 bytes
-   * Finally, cache line (getconf LEVEL1_DCACHE_LINESIZE) = 64 bytes, so 64-4-24 is the padding
-   */
-  char padding[36];
+} kernel_thread_variables_t;
+
+typedef struct kernel_thread {
+  kernel_thread_variables_t vars;
+  char padding[64 - sizeof(kernel_thread_variables_t)];
 } kernel_thread_t;
 
 kernel_thread_t *kernel_thr;
@@ -78,11 +78,10 @@ void thread_exit();
 void scheduler(void *id);
 void free_thread(thread_t *thr);
 void *wrapper_scheduler(void *id);
-void work_stealing(int native_thread);
-void create_kernel_thread(kernel_thread_t *thr);
 void wrapper_func(void (body)(void *), void *arg);
 thread_t *thread_self();
 thread_t **THREAD_LIST2(int nargs, ...);
+thread_t *work_stealing(int native_thread);
 thread_t **THREAD_LIST(thread_t *successor);
 thread_t *thread_create(void (body)(void *), void *arg, int deps, thread_t *successors[]);
 

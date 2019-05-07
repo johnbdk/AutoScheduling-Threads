@@ -82,18 +82,40 @@ node_t *dequeue_head(queue_t *queue) {
     return curr;
 }
 
-int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio) {
-    int i, nodes_to_transfer;
-    node_t *end_node, *start_node;
+node_t *transfer_node(queue_t *queue) {
+    node_t *ret_node;
 
-    // return one thread and save others to queue
-    // check if it has threads and after that lock the source queue
+    if (queue->num_nodes < 2) {
+        return NULL;
+    } 
+
+    lock_acquire(&(queue->lock));
+    if (queue->num_nodes < 2) {
+        lock_release(&(queue->lock));
+        return NULL;
+    }
+
+    ret_node = queue->head->next;
+    queue->head->next = ret_node->next;
+    ret_node->next->prev = queue->head;
+    queue->num_nodes--;
+    lock_release(&(queue->lock));
+    return ret_node;
+}
+
+node_t *transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio) {
+    int i, nodes_to_transfer;
+    node_t *end_node, *start_node, *ret_node;
+
+    if (src_queue->num_nodes < 2) {
+        return NULL;
+    } 
 
     lock_acquire(&(src_queue->lock));
     nodes_to_transfer = src_queue->num_nodes*ratio;
     if (nodes_to_transfer == 0) {
         lock_release(&(src_queue->lock));
-        return 0;
+        return NULL;
     }
 
     start_node = src_queue->head->next;
@@ -101,8 +123,15 @@ int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio) {
 
     src_queue->head->next = end_node->next;
     end_node->next->prev = src_queue->head;
+
     src_queue->num_nodes -= nodes_to_transfer;
-    lock_release(&( src_queue->lock));
+    lock_release(&(src_queue->lock));
+
+    ret_node = start_node;
+    if (start_node == end_node) {
+        return ret_node;
+    }
+    start_node = start_node->next;
 
     lock_acquire(&(dest_queue->lock));
     dest_queue->head->next = start_node;
@@ -110,7 +139,7 @@ int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio) {
     end_node->next = dest_queue->head;
     dest_queue->head->prev = end_node;
 
-    dest_queue->num_nodes += nodes_to_transfer;
+    dest_queue->num_nodes += nodes_to_transfer - 1;
     lock_release(&(dest_queue->lock));
-    return 1;
+    return ret_node;
 }

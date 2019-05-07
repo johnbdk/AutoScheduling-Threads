@@ -2,7 +2,7 @@
 #include "threads.h"
 #include "lock.h"
 
-#define SIZE    1024
+#define SIZE    512
 #define CHUNK   64
 double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 

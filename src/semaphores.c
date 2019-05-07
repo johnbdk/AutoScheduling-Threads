@@ -29,7 +29,7 @@ int sem_up(sem_t *s) {
     if (curr_thr != NULL) {
         if (curr_thr->deps == 0) {
             curr_thr->blocked = 0;
-            enqueue_head(kernel_thr[0].ready_queue, (node_t *)curr_thr);
+            enqueue_head(kernel_thr[curr_thr->kernel_thread_id].vars.ready_queue, (node_t *)curr_thr);
         }
     }
     return 0;

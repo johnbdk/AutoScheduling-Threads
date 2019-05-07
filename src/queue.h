@@ -20,12 +20,13 @@ typedef struct queue {
 } queue_t;
 
 int queue_empty(queue_t *head);
-int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio);
 void print_queue(queue_t *head);
 void enqueue_head(queue_t *head, node_t *element);
 void enqueue_tail(queue_t *head, node_t *element);
 node_t *dequeue_head(queue_t *head);
 node_t *dequeue_tail(queue_t *head);
+node_t *transfer_node(queue_t *src_queue);
+node_t *transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio);
 queue_t *queue_create();
 
 #endif
