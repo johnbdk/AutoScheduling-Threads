@@ -2,7 +2,7 @@
 #include "threads.h"
 #include "lock.h"
 
-#define SIZE    512
+#define SIZE    1024
 #define CHUNK   64
 double A[SIZE][SIZE], B[SIZE][SIZE], C[SIZE][SIZE];
 
@@ -62,7 +62,7 @@ int main (int argc, char *argv[]) {
 
     init_arrays();
 
-    thread_lib_init(8);
+    thread_lib_init(4);
     myself = thread_self();
     thread_inc_dependency(SIZE);
 

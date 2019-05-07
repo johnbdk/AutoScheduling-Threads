@@ -86,33 +86,31 @@ int transfer_nodes(queue_t *dest_queue, queue_t *src_queue, float ratio) {
     int i, nodes_to_transfer;
     node_t *end_node, *start_node;
 
-    if (src_queue == NULL) {
-        return 0;
-    }
+    // return one thread and save others to queue
+    // check if it has threads and after that lock the source queue
 
     lock_acquire(&(src_queue->lock));
-    lock_acquire(&(dest_queue->lock));
     nodes_to_transfer = src_queue->num_nodes*ratio;
     if (nodes_to_transfer == 0) {
         lock_release(&(src_queue->lock));
-        lock_release(&(dest_queue->lock));
         return 0;
     }
 
     start_node = src_queue->head->next;
     for (i = 0, end_node = src_queue->head; i < nodes_to_transfer; i++, end_node = end_node->next);
 
-    dest_queue->head->next = start_node;
-    start_node->prev = dest_queue->head;
     src_queue->head->next = end_node->next;
     end_node->next->prev = src_queue->head;
+    src_queue->num_nodes -= nodes_to_transfer;
+    lock_release(&( src_queue->lock));
+
+    lock_acquire(&(dest_queue->lock));
+    dest_queue->head->next = start_node;
+    start_node->prev = dest_queue->head;
     end_node->next = dest_queue->head;
     dest_queue->head->prev = end_node;
 
-    src_queue->num_nodes -= nodes_to_transfer;
     dest_queue->num_nodes += nodes_to_transfer;
-    
-    lock_release(&(src_queue->lock));
     lock_release(&(dest_queue->lock));
     return 1;
 }

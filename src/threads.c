@@ -70,10 +70,13 @@ int thread_lib_init(int native_threads) {
 
     /* Initialize the rest of the kernel threads */
     for (int i = 1; i < native_threads; i++) {
-        kernel_thr[i].ready_queue = queue_create();
+        kernel_thr[i].ready_queue = queue_create(); //todo before
         kernel_thr[i].id = i;
         kernel_thr[i].context = (ucontext_t *) malloc(sizeof(ucontext_t));
         kernel_thr[i].thr = (pthread_t *) malloc(sizeof(pthread_t));
+    }
+    for (int i = 1; i < native_threads; i++) {
+
         pthread_create(kernel_thr[i].thr, NULL, wrapper_scheduler, (void *) &kernel_thr[i].id);
     }
     pthread_setconcurrency(native_threads);
@@ -283,7 +286,7 @@ void work_stealing(int native_thread) {
     float stealing = 1/2.;
 
     for (k = 0, i = ((native_thread + 1) % no_native_threads); k < (no_native_threads - 1); k++, i = ((i + 1) % no_native_threads)) {
-        if (transfer_nodes(kernel_thr[native_thread].ready_queue, kernel_thr[i].ready_queue, stealing)) {
+        if (transfer_nodes(kernel_thr[native_thread].ready_queue, kernel_thr[0].ready_queue, stealing)) {
             return;
         }
     }
@@ -302,15 +305,15 @@ void scheduler(void *id) {
         }
         running_thread->kernel_thread_id = native_thread;
 
-        printf("SCHEDULER: run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
-        fflush(stdout);
+        // printf("SCHEDULER: run the next thread %d from kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
+        // fflush(stdout);
 
         if (swapcontext(kernel_thr[native_thread].context, &(running_thread->context)) == -1) {
             handle_error("swapcontext");
         }
 
-        printf("SCHEDULER: return of thread %d on kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
-        fflush(stdout);
+        // printf("SCHEDULER: return of thread %d on kernel thread %d, queue: %p\n", running_thread->id, native_thread, kernel_thr[native_thread].ready_queue);
+        // fflush(stdout);
         if (running_thread->alive == 0) {
             free_thread(running_thread);
         }
